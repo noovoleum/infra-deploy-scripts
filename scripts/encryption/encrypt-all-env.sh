@@ -4,8 +4,11 @@
 
 set -e
 
-# Get script directory
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Get script directory (handle Windows backslashes from PowerShell)
+SCRIPT_PATH="$0"
+# Convert backslashes to forward slashes
+SCRIPT_PATH=$(echo "$SCRIPT_PATH" | tr '\\' '/')
+SCRIPT_DIR="$(cd "$(dirname "$SCRIPT_PATH")" && pwd)"
 
 # Find the actual git repository root by traversing up from script location
 # This works even when script is in a submodule and called via 'sh' from any directory
