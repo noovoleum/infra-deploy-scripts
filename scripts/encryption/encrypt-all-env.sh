@@ -7,9 +7,9 @@ set -e
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Find the actual git repository root (works even when script is in a submodule)
-# Try to find .git directory by going up until we find it
-DIR="$(pwd)"
+# Find the actual git repository root by traversing up from script location
+# This works even when script is in a submodule and called via 'sh' from any directory
+DIR="$SCRIPT_DIR"
 while [ "$DIR" != "/" ]; do
     if [ -d "$DIR/.git" ] || [ -f "$DIR/.git" ]; then
         REPO_ROOT="$DIR"
@@ -18,9 +18,9 @@ while [ "$DIR" != "/" ]; do
     DIR=$(dirname "$DIR")
 done
 
-# Fallback to current directory if .git not found
+# Fallback to script's parent directories if .git not found
 if [ -z "$REPO_ROOT" ]; then
-    REPO_ROOT="$(pwd)"
+    REPO_ROOT="$SCRIPT_DIR"
 fi
 
 # Change to repo root for operations
