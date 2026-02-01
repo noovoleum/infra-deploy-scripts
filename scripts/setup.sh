@@ -20,6 +20,20 @@ PARENT_DIR="$(cd "$REPO_ROOT/.." && pwd)"
 echo "=== infra-deploy-scripts Setup ==="
 echo ""
 
+# First, check requirements
+echo "Checking requirements..."
+if [ -f "$SCRIPT_DIR/check-requirements.sh" ]; then
+    if ! sh "$SCRIPT_DIR/check-requirements.sh"; then
+        echo ""
+        echo -e "${RED}Requirements check failed. Please install missing requirements and run setup again.${NC}"
+        exit 1
+    fi
+    echo ""
+else
+    echo -e "${YELLOW}Warning: check-requirements.sh not found, skipping requirements check${NC}"
+    echo ""
+fi
+
 # Check if just is installed
 if ! command -v just >/dev/null 2>&1; then
     echo -e "${YELLOW}Warning: 'just' command runner is not installed${NC}"
