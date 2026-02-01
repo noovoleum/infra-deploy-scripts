@@ -62,7 +62,13 @@ fi
 
 # Find all .env files (but not .env.encrypted or .env.example)
 # We look for files named exactly ".env" in stack directories
-ENV_FILES=$(find stacks -type f -name ".env" 2>/dev/null | while read -r file; do
+# Use /usr/bin/find explicitly to avoid Windows find.exe which searches for text
+FIND_CMD="find"
+if [ -x "/usr/bin/find" ]; then
+    FIND_CMD="/usr/bin/find"
+fi
+
+ENV_FILES=$($FIND_CMD stacks -type f -name ".env" 2>/dev/null | while read -r file; do
     # Skip if it's .env.encrypted or .env.example
     case "$file" in
         *.encrypted|*.example) ;;

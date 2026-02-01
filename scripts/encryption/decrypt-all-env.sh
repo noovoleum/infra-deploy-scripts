@@ -89,10 +89,16 @@ if [ -z "$SECRET_KEY" ]; then
 fi
 
 # Find all .env.encrypted files
-debug "Running: find stacks -name '.env.encrypted' -type f"
+# Use /usr/bin/find explicitly to avoid Windows find.exe which searches for text
+FIND_CMD="find"
+if [ -x "/usr/bin/find" ]; then
+    FIND_CMD="/usr/bin/find"
+fi
+
+debug "Running: $FIND_CMD stacks -name '.env.encrypted' -type f"
 debug "Current directory contents:"
 debug "$(ls -la | head -10)"
-ENCRYPTED_FILES=$(find stacks -name ".env.encrypted" -type f 2>/dev/null || true)
+ENCRYPTED_FILES=$($FIND_CMD stacks -name ".env.encrypted" -type f 2>/dev/null || true)
 
 debug "find command exit code: $?"
 debug "ENCRYPTED_FILES result: '$ENCRYPTED_FILES'"
