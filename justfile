@@ -1,6 +1,9 @@
 # justfile for infra-deploy-scripts
 # Run commands with: just <command>
 # See all commands: just --list
+#
+# Debug mode: Add --debug or -d flag to any command to see detailed output
+# Example: just decrypt-all --debug
 
 # Set the default recipe
 default:
@@ -8,20 +11,24 @@ default:
 
 # Encryption/Decryption commands
 encrypt-all:
-    @echo "Encrypting all .env files in stacks/..."
-    @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-all-env.sh
+    @echo "Encrypting all .env files in stacks..."
+    @{{ "Running:" if debug else "" }} sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-all-env.sh {{debug}}
+    @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-all-env.sh {{debug}}
 
 decrypt-all:
     @echo "Decrypting all .env.encrypted files in stacks/..."
-    @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh
+    @{{ "Running:" if debug else "" }} sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh {{debug}}
+    @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh {{debug}}
 
 encrypt stack:
     @echo "Encrypting {{stack}}/.env..."
-    @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh {{stack}}
+    @{{ "Running:" if debug else "" }} sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh {{stack}} {{debug}}
+    @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh {{stack}} {{debug}}
 
 decrypt stack:
     @echo "Decrypting {{stack}}/.env.encrypted..."
-    @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh {{stack}}
+    @{{ "Running:" if debug else "" }} sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh {{stack}} {{debug}}
+    @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh {{stack}} {{debug}}
 
 # Key management
 setup-key:
