@@ -1,0 +1,145 @@
+#!/bin/sh
+# Script to encrypt .env file values using OpenSSL
+# Usage: ./encrypt-env.sh <stack-name> [secret-key]
+# If secret-key is not provided, it will be retrieved from key.env file or ENV_DECRYPTION_KEY environment variable
+# The secret key should be shared only between you and Komodo
+# This script encrypts ONLY the values, keeping keys visible in the format: KEY=ENCRYPTED:base64_value
+
+set -e
+
+# Get script directory (compatible with sh)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+STACK_NAME=$1
+SECRET_KEY="$2"
+
+if [ -z "$STACK_NAME" ]; then
+    echo "Usage: $0 <stack-name> [secret-key]"
+    echo "Example: $0 example-stack"
+    echo "         $0 example-stack my-secret-key-123"
+    exit 1
+fi
+
+# Get decryption key if not provided
+if [ -z "$SECRET_KEY" ]; then
+    SECRET_KEY=$("$SCRIPT_DIR/get-decryption-key.sh" 2>/dev/null || echo "")
+fi
+
+if [ -z "$SECRET_KEY" ]; then
+    echo "Error: No secret key provided and no key found in key.env file or ENV_DECRYPTION_KEY environment variable" >&2
+    echo ""
+    echo "Either:" >&2
+    echo "  1. Provide the key: $0 $STACK_NAME <key>" >&2
+    echo "  2. Set up local key: ./scripts/setup-local-key.sh" >&2
+    echo "  3. Set environment variable: export ENV_DECRYPTION_KEY='<key>'" >&2
+    exit 1
+fi
+
+STACK_DIR="stacks/$STACK_NAME"
+ENV_FILE="$STACK_DIR/.env"
+ENCRYPTED_FILE="$STACK_DIR/.env.encrypted"
+
+if [ ! -f "$ENV_FILE" ]; then
+    echo "Error: $ENV_FILE not found"
+    exit 1
+fi
+
+# Check if OpenSSL is available
+# Try multiple methods to find openssl (compatible with sh)
+OPENSSL_CMD=""
+if command -v openssl >/dev/null 2>&1; then
+    OPENSSL_CMD="openssl"
+elif [ -x "/usr/bin/openssl" ]; then
+    OPENSSL_CMD="/usr/bin/openssl"
+elif [ -x "/usr/local/bin/openssl" ]; then
+    OPENSSL_CMD="/usr/local/bin/openssl"
+elif [ -x "/bin/openssl" ]; then
+    OPENSSL_CMD="/bin/openssl"
+fi
+
+if [ -z "$OPENSSL_CMD" ]; then
+    echo "Error: OpenSSL is not installed or not in PATH" >&2
+    echo "Tried: openssl, /usr/bin/openssl, /usr/local/bin/openssl, /bin/openssl" >&2
+    exit 1
+fi
+
+# Function to encrypt a value
+encrypt_value() {
+    local value="$1"
+
+    # If value is already encrypted (starts with ENCRYPTED:), skip re-encryption
+    case "$value" in
+        ENCRYPTED:*)
+            echo "$value"
+            return
+            ;;
+    esac
+
+    # Encrypt the value using OpenSSL
+    # Use -base64 to get base64 output
+    # Use -nopad to avoid padding issues
+    local encrypted=$("$OPENSSL_CMD" enc -aes-256-cbc -salt -pbkdf2 -base64 -pass pass:"$SECRET_KEY" 2>/dev/null <<EOF
+$value
+EOF
+)
+
+    if [ $? -ne 0 ]; then
+        echo "Error: Failed to encrypt value" >&2
+        return 1
+    fi
+
+    # Remove newlines from base64 output to ensure single-line format
+    encrypted=$(echo "$encrypted" | tr -d '\n')
+
+    # Output the encrypted value with prefix
+    echo "ENCRYPTED:$encrypted"
+}
+
+# Read .env file line by line and encrypt values
+LINE_NUM=0
+while IFS= read -r line || [ -n "$line" ]; do
+    LINE_NUM=$((LINE_NUM + 1))
+
+    # Skip empty lines
+    case "$line" in
+        ''|' '*|'	'*)
+            echo "$line"
+            continue
+            ;;
+    esac
+
+    # Skip comment lines (lines starting with #)
+    case "$line" in
+        \#*)
+            echo "$line"
+            continue
+            ;;
+    esac
+
+    # Check if line contains = sign
+    case "$line" in
+        *=*)
+            # Split on first = sign to get key and value
+            key="${line%%=*}"
+            value="${line#*=}"
+
+            # Encrypt the value
+            encrypted_value=$(encrypt_value "$value")
+
+            if [ $? -eq 0 ]; then
+                echo "${key}=${encrypted_value}"
+            else
+                echo "Error: Failed to encrypt line $LINE_NUM: $line" >&2
+                exit 1
+            fi
+            ;;
+        *)
+            # Line doesn't have = sign, keep as is
+            echo "$line"
+            ;;
+    esac
+done < "$ENV_FILE" > "$ENCRYPTED_FILE"
+
+echo "Encrypted values in $ENV_FILE to $ENCRYPTED_FILE"
+echo "Keys are visible, values are encrypted with ENCRYPTED: prefix"
+echo "You can now safely commit $ENCRYPTED_FILE to the repository"
