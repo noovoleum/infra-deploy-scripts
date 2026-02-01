@@ -9,19 +9,19 @@ default:
 # Encryption/Decryption commands
 encrypt-all:
     @echo "Encrypting all .env files in stacks/..."
-    @./scripts/encryption/encrypt-all-env.sh
+    @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-all-env.sh
 
 decrypt-all:
     @echo "Decrypting all .env.encrypted files in stacks/..."
-    @./scripts/encryption/decrypt-all-env.sh
+    @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh
 
 encrypt stack:
     @echo "Encrypting {{stack}}/.env..."
-    @./scripts/encryption/encrypt-env.sh {{stack}}
+    @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh {{stack}}
 
 decrypt stack:
     @echo "Decrypting {{stack}}/.env.encrypted..."
-    @./scripts/encryption/decrypt-env.sh {{stack}}
+    @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh {{stack}}
 
 # Key management
 setup-key:
