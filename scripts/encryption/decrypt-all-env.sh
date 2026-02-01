@@ -9,11 +9,23 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Find the actual git repository root by traversing up from script location
 # This works even when script is in a submodule and called via 'sh' from any directory
+# We skip submodule .git files (which contain "gitdir:" text) to find the real repo
 DIR="$SCRIPT_DIR"
 while [ "$DIR" != "/" ]; do
-    if [ -d "$DIR/.git" ] || [ -f "$DIR/.git" ]; then
+    # Check for .git directory (real repo) or file with content (submodule)
+    if [ -d "$DIR/.git" ]; then
         REPO_ROOT="$DIR"
         break
+    elif [ -f "$DIR/.git" ]; then
+        # Check if it's a submodule .git file (contains "gitdir:")
+        if grep -q "gitdir:" "$DIR/.git" 2>/dev/null; then
+            # This is a submodule, continue up to find the real repo
+            :
+        else
+            # This is a regular file with .git name, use it
+            REPO_ROOT="$DIR"
+            break
+        fi
     fi
     DIR=$(dirname "$DIR")
 done
