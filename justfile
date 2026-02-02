@@ -2,8 +2,11 @@
 # Run commands with: just <command>
 # See all commands: just --list
 #
-# Debug mode: Add --debug or -d flag to any command to see detailed output
-# Example: just decrypt-all --debug
+# Debug mode: Pass debug="--debug" to any command to see detailed output
+# Example: just decrypt-all debug="--debug"
+
+# Debug flag (pass debug="--debug" to enable)
+debug := ""
 
 # Set the default recipe
 default:
@@ -115,6 +118,9 @@ help:
     @echo "  just decrypt-all       Decrypt all .env.encrypted files"
     @echo "  just encrypt <stack>   Encrypt specific stack"
     @echo "  just decrypt <stack>   Decrypt specific stack"
+    @echo ""
+    @echo "Debug mode (add to any command):"
+    @echo "  just decrypt-all debug=\"--debug\""
     @echo ""
     @echo "Key management:"
     @echo "  just setup-key         Set up local encryption key"
