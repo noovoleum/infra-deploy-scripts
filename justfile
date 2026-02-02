@@ -2,32 +2,29 @@
 # Run commands with: just <command>
 # See all commands: just --list
 #
-# Debug mode: Pass debug="--debug" to any command to see detailed output
-# Example: just decrypt-all debug="--debug"
-
-# Debug flag (pass debug="--debug" to enable)
-debug := ""
+# Debug mode: Add --debug flag to any command to see detailed output
+# Example: just decrypt-all --debug
 
 # Set the default recipe
 default:
     @just --list
 
 # Encryption/Decryption commands
-encrypt-all:
+encrypt-all *FLAGS:
     @echo "Encrypting all .env files in stacks..."
-    @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-all-env.sh {{debug}}
+    @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-all-env.sh {{FLAGS}}
 
-decrypt-all:
+decrypt-all *FLAGS:
     @echo "Decrypting all .env.encrypted files in stacks/..."
-    @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh {{debug}}
+    @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh {{FLAGS}}
 
-encrypt stack:
+encrypt stack *FLAGS:
     @echo "Encrypting {{stack}}/.env..."
-    @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh {{stack}} {{debug}}
+    @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh {{stack}} {{FLAGS}}
 
-decrypt stack:
+decrypt stack *FLAGS:
     @echo "Decrypting {{stack}}/.env.encrypted..."
-    @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh {{stack}} {{debug}}
+    @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh {{stack}} {{FLAGS}}
 
 # Key management
 setup-key:
@@ -119,8 +116,9 @@ help:
     @echo "  just encrypt <stack>   Encrypt specific stack"
     @echo "  just decrypt <stack>   Decrypt specific stack"
     @echo ""
-    @echo "Debug mode (add to any command):"
-    @echo "  just decrypt-all debug=\"--debug\""
+    @echo "Debug mode (add --debug to any command):"
+    @echo "  just decrypt-all --debug"
+    @echo "  just encrypt outline --debug"
     @echo ""
     @echo "Key management:"
     @echo "  just setup-key         Set up local encryption key"
