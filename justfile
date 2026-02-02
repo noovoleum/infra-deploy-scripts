@@ -12,22 +12,18 @@ default:
 # Encryption/Decryption commands
 encrypt-all:
     @echo "Encrypting all .env files in stacks..."
-    @{{ "Running:" if debug else "" }} sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-all-env.sh {{debug}}
     @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-all-env.sh {{debug}}
 
 decrypt-all:
     @echo "Decrypting all .env.encrypted files in stacks/..."
-    @{{ "Running:" if debug else "" }} sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh {{debug}}
     @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh {{debug}}
 
 encrypt stack:
     @echo "Encrypting {{stack}}/.env..."
-    @{{ "Running:" if debug else "" }} sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh {{stack}} {{debug}}
     @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh {{stack}} {{debug}}
 
 decrypt stack:
     @echo "Decrypting {{stack}}/.env.encrypted..."
-    @{{ "Running:" if debug else "" }} sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh {{stack}} {{debug}}
     @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh {{stack}} {{debug}}
 
 # Key management
