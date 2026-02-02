@@ -6,116 +6,176 @@ Standardized scripts and tooling for GitOps deployment across `infra-deploy-*` r
 
 This repository provides shared scripts, just commands, and documentation for managing encrypted environment variables in GitOps deployments. It's designed to be used as a git submodule in `infra-deploy-*` repositories.
 
-## Features
-
-- 🔐 **Encryption/Decryption Scripts** - OpenSSL-based encryption for environment variables
+**Features:**
+- 🔐 **Encryption/Decryption** - OpenSSL-based encryption for environment variables
 - ⚡ **Just Command Runner** - Simple, discoverable commands for common operations
 - 🔧 **Requirements Checker** - Automatic verification of required tools
-- 🪟 **Windows Support** - Full Windows compatibility via Git Bash
+- 🪟 **Cross-Platform** - Full support for Linux, macOS, and Windows (via Git Bash)
 - 📦 **Git Submodule** - Easy integration and updates across all repos
+
+---
 
 ## Quick Start
 
-### 1. Clone or Add as Submodule
+### 1. Add as Submodule (Recommended)
 
-**As a submodule (recommended):**
 ```bash
 cd your-infra-deploy-repo
 git submodule add https://github.com/noovoleum/infra-deploy-scripts.git lib/infra-deploy-scripts
+git commit -m "Add infra-deploy-scripts submodule"
 ```
 
-**Or clone standalone:**
-```bash
-git clone https://github.com/noovoleum/infra-deploy-scripts.git
-cd infra-deploy-scripts
-```
-
-### 2. Check Requirements
+### 2. Run Setup
 
 ```bash
-./scripts/check-requirements.sh
+./lib/infra-deploy-scripts/scripts/check-requirements.sh  # Verify requirements
+./lib/infra-deploy-scripts/scripts/setup.sh               # Install just, create symlinks
 ```
 
-This will verify that you have the required tools installed (Git, OpenSSL, etc.).
-
-### 3. Run Setup
+### 3. Start Using
 
 ```bash
-./scripts/setup.sh
+just decrypt-all           # Decrypt all .env.encrypted files
+just encrypt-all           # Encrypt all .env files
+just decrypt <stack>       # Decrypt specific stack
+just encrypt <stack>       # Encrypt specific stack
+just status                # Show repository status
 ```
 
-This will:
-- Verify all requirements are met
-- Install `just` command runner (optional but recommended)
-- Create symlink to justfile in parent directory (if used as submodule)
+---
 
-### 4. Start Using Commands
+## Table of Contents
 
-```bash
-just encrypt-all        # Encrypt all .env files
-just decrypt-all        # Decrypt all .env.encrypted files
-just encrypt <stack>    # Encrypt specific stack
-just decrypt <stack>    # Decrypt specific stack
-just list-stacks        # List all available stacks
-just status             # Show repository status
-```
+- [Installation](#installation)
+- [Usage](#usage)
+- [Encryption Details](#encryption-details)
+- [Platform Guides](#platform-guides)
+- [PowerShell Integration](#powershell-integration)
+- [Git Submodule Usage](#git-submodule-usage)
+- [Troubleshooting](#troubleshooting)
 
-## Documentation
+---
 
-### Core Documentation
+## Installation
 
-- **[Encryption Scripts README](scripts/encryption/README.md)** - Encryption/decryption usage
-- **[Just Commands Guide](JUST.md)** - Just command runner documentation
-- **[Windows Setup Guide](WINDOWS_SETUP.md)** - Windows Git Bash setup instructions
+### Requirements
 
-### For Parent Repositories
-
-When using this as a submodule, you'll also have access to:
-
-- **Requirements Checker** - `./lib/infra-deploy-scripts/scripts/check-requirements.sh`
-- **Setup Script** - `./lib/infra-deploy-scripts/scripts/setup.sh`
-
-## Requirements
-
-### Required Tools
-
+**Required Tools:**
 - **Git** - Version control
 - **OpenSSL** - Encryption/decryption
 - **Basic Unix tools** - `base64`, `tr`, `grep` (usually pre-installed)
 
-### Optional Tools
-
-- **just** - Command runner (highly recommended for better UX)
+**Optional Tools:**
+- **just** - Command runner (highly recommended)
 - **cargo** - Rust package manager (for installing `just`)
 
-See [WINDOWS_SETUP.md](WINDOWS_SETUP.md) for Windows-specific installation instructions.
+### Check Requirements
 
-## Repository Structure
-
-```
-infra-deploy-scripts/
-├── justfile                    # Just command definitions
-├── README.md                   # This file
-├── JUST.md                     # Just documentation
-├── WINDOWS_SETUP.md            # Windows setup guide
-├── scripts/
-│   ├── setup.sh                # Main setup script
-│   ├── check-requirements.sh   # Requirements checker
-│   └── encryption/             # Encryption/decryption scripts
-│       ├── README.md           # Encryption documentation
-│       ├── encrypt-env.sh      # Encrypt single .env
-│       ├── decrypt-env.sh      # Decrypt single .env
-│       ├── encrypt-all-env.sh  # Encrypt all stacks
-│       ├── decrypt-all-env.sh  # Decrypt all stacks
-│       └── get-decryption-key.sh # Key retrieval helper
-└── encryption/                 # (Legacy alias for scripts/encryption)
+```bash
+./lib/infra-deploy-scripts/scripts/check-requirements.sh
 ```
 
-## Encryption/Decryption Overview
+This will verify all required tools are installed and show installation instructions for any missing tools.
+
+### Install Just Command Runner
+
+The setup script can install `just` automatically:
+
+```bash
+./lib/infra-deploy-scripts/scripts/setup.sh
+```
+
+Or install manually:
+
+**Via cargo (recommended):**
+```bash
+cargo install just
+```
+
+**Via Homebrew (macOS):**
+```bash
+brew install just
+```
+
+**Via Pacman (Arch Linux):**
+```bash
+sudo pacman -S just
+```
+
+---
+
+## Usage
+
+### Just Commands
+
+The easiest way to use the scripts is via `just` commands:
+
+#### Encryption/Decryption
+
+```bash
+just encrypt-all            # Encrypt all .env files in stacks/
+just decrypt-all            # Decrypt all .env.encrypted files in stacks/
+just encrypt <stack>        # Encrypt specific stack
+just decrypt <stack>        # Decrypt specific stack
+```
+
+#### Debug Mode
+
+Add `--debug` flag to any command for detailed output:
+
+```bash
+just decrypt-all --debug
+just encrypt outline --debug
+```
+
+#### Key Management
+
+```bash
+just setup-key              # Interactive key setup (creates key.env)
+```
+
+#### Repository Management
+
+```bash
+just list-stacks            # List all available stacks
+just status                 # Show git and submodule status
+just clean                  # Remove decrypted .env files
+```
+
+#### Git Submodules
+
+```bash
+just submodule-init         # Initialize git submodules
+just submodule-update       # Update git submodules to latest
+just submodule-status       # Show submodule status
+```
+
+#### Setup Commands
+
+```bash
+just install-just           # Install just command runner
+just setup                  # Run full setup
+just help                   # Show help message
+```
+
+### Direct Script Usage
+
+You can also run scripts directly without `just`:
+
+```bash
+# From project root (when used as submodule)
+./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh
+./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh <stack>
+./lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh <stack>
+```
+
+---
+
+## Encryption Details
 
 ### How It Works
 
-The encryption scripts use OpenSSL AES-256-CBC to encrypt environment variable values while keeping the keys visible:
+The scripts use OpenSSL AES-256-CBC to encrypt environment variable **values** while keeping the **keys** visible:
 
 **Before (`.env`):**
 ```env
@@ -130,92 +190,51 @@ API_KEY=ENCRYPTED:U2FsdGVkX1...
 ```
 
 This allows you to:
-- Commit `.env.encrypted` files to Git
-- Keep variable keys visible for documentation
-- Securely store sensitive values
+- ✅ Commit `.env.encrypted` files to Git
+- ✅ Keep variable keys visible for documentation
+- ✅ Securely store sensitive values
+- ✅ Decrypt at deploy time with Komodo
 
 ### Key Management
 
 The decryption key can be provided via:
 
-1. **Command line argument** (not recommended for security)
-2. **`key.env` file** (local, not committed)
-3. **`ENV_DECRYPTION_KEY` environment variable**
+1. **`key.env` file** (local, not committed to Git)
+2. **`ENV_DECRYPTION_KEY` environment variable**
+3. **Command line argument** (not recommended, appears in shell history)
 
-Example `key.env`:
+#### Setting Up a Local Key
+
+**Option 1: Create key.env file**
 ```bash
-ENV_DECRYPTION_KEY='your-secret-key-here'
+echo "ENV_DECRYPTION_KEY='your-secret-key-here'" > key.env
+chmod 600 key.env
+# Add key.env to .gitignore!
 ```
 
-## Just Commands
-
-The `justfile` provides convenient commands for common operations:
-
-### Encryption/Decryption
-
+**Option 2: Environment variable**
 ```bash
-just encrypt-all        # Encrypt all stacks
-just decrypt-all        # Decrypt all stacks
-just encrypt <stack>    # Encrypt specific stack
-just decrypt <stack>    # Decrypt specific stack
+export ENV_DECRYPTION_KEY='your-secret-key-here'
+# Add to ~/.bashrc or ~/.zshrc for persistence
 ```
 
-### Key Management
-
+**Option 3: Use just setup-key**
 ```bash
-just setup-key          # Interactive key setup
+just setup-key  # Interactive prompt
 ```
 
-### Repository Management
+### Encryption Script Features
 
-```bash
-just list-stacks        # List all stacks
-just status             # Show repository status
-just clean              # Remove .env files
-```
+The decryption scripts include robust error handling for:
+- ✅ **Empty values** - Gracefully handles `KEY=ENCRYPTED:` (no value after prefix)
+- ✅ **Invalid keys** - Clear error messages for incorrect decryption keys
+- ✅ **Missing OpenSSL** - Detects and reports if OpenSSL is not installed
+- ✅ **Corrupted data** - Handles cases where encrypted data is malformed
+- ✅ **Key validation** - Validates that the secret key is not empty
 
-### Git Submodules
+---
 
-```bash
-just submodule-init     # Initialize submodules
-just submodule-update   # Update submodules
-just submodule-status   # Show submodule status
-```
-
-### Setup
-
-```bash
-just install-just       # Install just command runner
-just setup              # Run full setup
-just help               # Show help
-```
-
-See [JUST.md](JUST.md) for complete documentation.
-
-## Windows Support
-
-This repository fully supports Windows via **Git Bash**, which provides a Unix-compatible shell environment.
-
-### Why Git Bash?
-
-- **Single script set** - No need for separate PowerShell scripts
-- **Full compatibility** - Same commands as Linux/macOS
-- **Better tools** - Access to Unix utilities
-- **Consistent workflow** - Same experience across platforms
-
-### Setup on Windows
-
-1. Install [Git for Windows](https://git-scm.com/download/win)
-2. Install [OpenSSL for Windows](https://slproweb.com/products/Win32OpenSSL.html) (if not included)
-3. Open Git Bash and run:
-   ```bash
-   ./scripts/check-requirements.sh
-   ./scripts/setup.sh
-   ```
-
-See [WINDOWS_SETUP.md](WINDOWS_SETUP.md) for detailed Windows setup instructions.
-
-## Platform-Specific Notes
+## Platform Guides
 
 ### Linux
 
@@ -246,11 +265,152 @@ brew install openssl just
 
 ### Windows
 
-See [WINDOWS_SETUP.md](WINDOWS_SETUP.md) for detailed instructions.
+We recommend using **Git Bash** for full shell script compatibility without needing separate PowerShell scripts.
 
-## Integration with Parent Repositories
+#### Why Git Bash?
 
-This repository is designed to be used as a git submodule in `infra-deploy-*` repositories.
+- ✅ **Single script set** - No need to maintain both `.sh` and `.ps1` files
+- ✅ **Full compatibility** - Complete Unix-like environment on Windows
+- ✅ **Same commands** - Use the exact same commands as Linux/macOS users
+- ✅ **Better tools** - Access to Unix tools like `grep`, `sed`, `awk`, etc.
+- ✅ **Consistent experience** - Same workflows across all platforms
+
+#### Windows Quick Start
+
+1. **Install Git for Windows**
+   - Download from: https://git-scm.com/download/win
+   - Keep default settings
+   - Ensure "Git Bash Here" is enabled
+
+2. **Install OpenSSL** (if not included with Git Bash)
+   - Download from: https://slproweb.com/products/Win32OpenSSL.html
+   - Install "Win64 OpenSSL v3.x.x (Full)"
+   - Add to PATH: `C:\Program Files\OpenSSL-Win64\bin`
+
+3. **Open Git Bash** and run:
+   ```bash
+   ./lib/infra-deploy-scripts/scripts/check-requirements.sh
+   ./lib/infra-deploy-scripts/scripts/setup.sh
+   ```
+
+4. **Start using:**
+   ```bash
+   just decrypt-all
+   just encrypt-all
+   ```
+
+#### Windows-Specific Notes
+
+**File Paths:**
+Git Bash uses Unix-style paths:
+- Windows `C:\Users\Name` → Git Bash `/c/Users/Name`
+- Your project is likely at `/c/Users/YourName/Projects/infra-deploy-xxx`
+
+**Line Endings:**
+```bash
+# Configure git to handle line endings
+git config --global core.autocrlf true
+```
+
+**Permissions:**
+Git Bash on Windows doesn't enforce Unix permissions, but you can still use:
+```bash
+chmod +x script.sh  # Won't actually change permissions
+./script.sh         # Git Bash will still run it
+```
+
+#### Alternative: WSL
+
+If you prefer a more native Linux experience, you can use WSL:
+
+```powershell
+# In PowerShell (as Administrator)
+wsl --install
+```
+
+**Benefits:** Native Linux environment, better performance, apt package manager
+**Trade-offs:** Larger installation, more complex file system integration
+
+For most users, Git Bash is sufficient and simpler.
+
+---
+
+## PowerShell Integration
+
+If you prefer PowerShell, you can run shell scripts directly without opening Git Bash.
+
+### Option 1: PowerShell Profile Functions (Recommended)
+
+Add these functions to your PowerShell profile (`$PROFILE`):
+
+```powershell
+# Function to run shell scripts via Git Bash
+function sh {
+    param(
+        [Parameter(ValueFromRemainingArguments)]
+        [string[]]$Arguments
+    )
+
+    $bashPath = "C:\Program Files\Git\bin\bash.exe"
+
+    if (Test-Path $bashPath) {
+        & $bashPath -c @Arguments
+    } else {
+        Write-Error "Git Bash not found at $bashPath. Please install Git for Windows."
+    }
+}
+
+# Just command runner
+function just {
+    sh "just $args"
+}
+
+# Encryption shortcuts
+function Encrypt-Stack {
+    param([string]$Stack)
+    sh "./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh $Stack"
+}
+
+function Decrypt-Stack {
+    param([string]$Stack)
+    sh "./lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh $Stack"
+}
+
+function Encrypt-AllStacks {
+    sh "just encrypt-all"
+}
+
+function Decrypt-AllStacks {
+    sh "just decrypt-all"
+}
+```
+
+**Then you can run:**
+```powershell
+PS> just decrypt-all
+PS> just encrypt outline
+PS> Encrypt-Stack outline
+PS> Decrypt-Stack boxui-sim
+```
+
+**Edit your PowerShell profile:**
+```powershell
+notepad $PROFILE
+# Add the functions above, save, and restart PowerShell
+```
+
+### Option 2: Direct Bash Invocation
+
+No setup required - just call bash directly:
+
+```powershell
+PS> bash ./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh
+PS> bash ./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh outline
+```
+
+---
+
+## Git Submodule Usage
 
 ### Adding to a Repository
 
@@ -260,49 +420,54 @@ git submodule add https://github.com/noovoleum/infra-deploy-scripts.git lib/infr
 git commit -m "Add infra-deploy-scripts submodule"
 ```
 
-### Wrapper Scripts
-
-The parent repository should include wrapper scripts that delegate to the submodule:
+### Initial Clone with Submodules
 
 ```bash
-#!/bin/sh
-# scripts/encrypt-env.sh
+# Clone repository and initialize submodules
+git clone --recurse-submodules https://github.com/noovoleum/infra-deploy-xxx.git
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ENCRYPTION_DIR="$SCRIPT_DIR/../lib/infra-deploy-scripts/scripts/encryption"
-
-exec sh "$ENCRYPTION_DIR/encrypt-env.sh" "$@"
+# Or if you already cloned:
+git submodule update --init --recursive
 ```
 
-Or use symlinks for simplicity:
+### Updating Submodules
+
+When `infra-deploy-scripts` is updated:
 
 ```bash
-cd scripts/
-ln -sf ../lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh encrypt-env.sh
-ln -sf ../lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh decrypt-env.sh
-# etc.
-```
-
-## Updating
-
-When this repository is updated, update the submodule in your repositories:
-
-```bash
-# In each infra-deploy-* repository
+# Update to latest version
 git submodule update --remote lib/infra-deploy-scripts
+
+# Commit the update
 git add lib/infra-deploy-scripts
 git commit -m "chore: update infra-deploy-scripts to latest"
 ```
+
+Or use the just command:
+```bash
+just submodule-update
+```
+
+### Removing and Reinitializing
+
+If you have submodule issues:
+
+```bash
+git submodule deinit -f lib/infra-deploy-scripts
+rm -rf .git/modules/lib/infra-deploy-scripts
+git rm -f lib/infra-deploy-scripts
+git submodule add https://github.com/noovoleum/infra-deploy-scripts.git lib/infra-deploy-scripts
+```
+
+---
 
 ## Troubleshooting
 
 ### Requirements Check Fails
 
-Run the requirements checker:
 ```bash
-./scripts/check-requirements.sh
+./lib/infra-deploy-scripts/scripts/check-requirements.sh
 ```
-
 This will show you which tools are missing and how to install them.
 
 ### "openssl: command not found"
@@ -313,7 +478,7 @@ This will show you which tools are missing and how to install them.
 
 ### "just: command not found"
 
-The scripts work without `just`, but it's recommended for better UX:
+The scripts work without `just`, but it's recommended:
 
 ```bash
 cargo install just
@@ -321,25 +486,137 @@ cargo install just
 brew install just  # macOS
 ```
 
-### Submodule Issues
+### "No .env.encrypted files found"
+
+Make sure you're in the correct directory (repository root) and that the `stacks/` directory contains `.env.encrypted` files.
 
 ```bash
-# Remove and reinitialize
-git submodule deinit -f lib/infra-deploy-scripts
-rm -rf .git/modules/lib/infra-deploy-scripts
-git rm -f lib/infra-deploy-scripts
-git submodule add https://github.com/noovoleum/infra-deploy-scripts.git lib/infra-deploy-scripts
+# Verify files exist
+ls -la stacks/*/.env.encrypted
+
+# Check current directory
+pwd
 ```
 
-### Windows Line Ending Issues
+### Decryption Fails with "Incorrect key"
+
+- Verify your `ENV_DECRYPTION_KEY` environment variable is set correctly
+- Check that `key.env` file exists and contains the correct key
+- Ensure you're using the same key that was used for encryption
+
+### Submodule Not Initialized
+
+```bash
+just submodule-init
+# or
+git submodule update --init --recursive
+```
+
+### Line Ending Issues (Windows)
 
 ```bash
 # Configure git to handle line endings
 git config --global core.autocrlf input
 
-# Convert files if needed
+# Or convert files
 dos2unix script.sh
 ```
+
+### Find Command Not Working (Windows)
+
+If you're running scripts from PowerShell and `find` doesn't work, the scripts automatically detect and use `/usr/bin/find` to avoid conflicts with Windows' `find.exe` command.
+
+### Script Permissions Denied
+
+**Linux/macOS:**
+```bash
+chmod +x ./lib/infra-deploy-scripts/scripts/**/*.sh
+```
+
+**Windows (Git Bash):**
+Just use `sh script.sh` instead of `./script.sh`:
+```bash
+sh ./lib/infra-deploy-scripts/scripts/decrypt-all-env.sh
+```
+
+---
+
+## Repository Structure
+
+```
+infra-deploy-scripts/
+├── justfile                          # Just command definitions
+├── README.md                         # This file
+├── scripts/
+│   ├── setup.sh                      # Main setup script
+│   ├── check-requirements.sh         # Requirements checker
+│   └── encryption/                   # Encryption/decryption scripts
+│       ├── README.md                 # Encryption documentation (this file)
+│       ├── encrypt-env.sh            # Encrypt single .env
+│       ├── decrypt-env.sh            # Decrypt single .env (with robust error handling)
+│       ├── encrypt-all-env.sh        # Encrypt all stacks
+│       ├── decrypt-all-env.sh        # Decrypt all stacks
+│       └── get-decryption-key.sh     # Key retrieval helper
+└── encryption/                       # (Legacy alias for scripts/encryption)
+```
+
+---
+
+## Workflow Examples
+
+### Initial Setup
+
+```bash
+# 1. Clone your repo with submodules
+git clone --recurse-submodules https://github.com/noovoleum/infra-deploy-xxx.git
+cd infra-deploy-xxx
+
+# 2. Run setup
+./lib/infra-deploy-scripts/scripts/setup.sh
+
+# 3. Set up your encryption key
+just setup-key
+```
+
+### Daily Workflow
+
+```bash
+# 1. Pull latest changes
+git pull
+
+# 2. Update submodules
+just submodule-update
+
+# 3. Decrypt all stacks to work on them
+just decrypt-all
+
+# 4. Make changes to .env files...
+
+# 5. Encrypt all stacks before committing
+just encrypt-all
+
+# 6. Clean up decrypted files
+just clean
+
+# 7. Commit and push
+git add .
+git commit -m "Update environment configuration"
+git push
+```
+
+### Single Stack Workflow
+
+```bash
+# Decrypt just one stack
+just decrypt outline
+
+# Make changes...
+
+# Encrypt it back
+just encrypt outline
+```
+
+---
 
 ## Contributing
 
@@ -351,27 +628,42 @@ When contributing changes:
 4. Ensure just commands work correctly
 5. Update this README if adding new features
 
+---
+
 ## License
 
 This repository is part of the Noovoleum infrastructure deployment tooling.
+
+---
 
 ## Related Repositories
 
 - **Parent repositories:** `infra-deploy-*` repositories
 - **Komodo:** [Komodo Deployment Platform](https://github.com/ISO-KOMODO/komodo)
 
+---
+
 ## Support
 
 For issues or questions:
 
 1. Check the documentation in this repository
-2. Run `./scripts/check-requirements.sh` to verify your setup
+2. Run `./lib/infra-deploy-scripts/scripts/check-requirements.sh` to verify your setup
 3. See platform-specific guides (Linux, macOS, Windows)
 4. Check the troubleshooting section above
 
+---
+
 ## Changelog
 
-### v1.0.0 (Current)
+### v1.1.0 (Current)
+- Added `*FLAGS` parameter support for intuitive debug flag usage
+- Fixed Windows `find.exe` command conflict
+- Enhanced error handling for empty encrypted values
+- Added backslash to forward slash path conversion for PowerShell
+- Improved submodule .git file detection
+
+### v1.0.0
 - Initial release
 - Encryption/decryption scripts with robust error handling
 - Just command runner integration
