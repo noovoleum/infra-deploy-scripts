@@ -1,0 +1,12 @@
+name: Test With Expressions
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    uses: noovoleum/infra-deploy-scripts/.github/workflows/deploy-reusable-with-expressions.yml@main
+    with:
+      environment: singapore-qa
+    secrets:
+      KOMODO_API_URL: ${{ secrets.KOMODO_API_URL }}
