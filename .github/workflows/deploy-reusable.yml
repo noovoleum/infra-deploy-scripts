@@ -259,12 +259,12 @@ jobs:
                   
                   # Validate tags include environment tag
                   tags = stack.get('tags', [])
-                  if 'ucollect-internal-prod' not in tags:
-                    warnings.append(f"Stack '{name}' missing 'ucollect-internal-prod' tag")
+                  if MATCH_TAG not in tags:
+                    warnings.append(f"Stack '{name}' missing '{MATCH_TAG}' tag")
 
                   # Validate linked_repo matches expected pattern (repo-per-server)
                   linked_repo = config.get('linked_repo', '')
-                  if linked_repo and not linked_repo.startswith('infra-deploy-ucollect-internal-prod'):
+                  if linked_repo and not linked_repo.startswith(os.environ.get('REPO_NAME', 'infra-deploy')):
                     warnings.append(f"Stack '{name}' has unexpected linked_repo: {linked_repo}")
           except Exception as e:
               errors.append(f"Failed to parse stacks.toml: {e}")
@@ -1067,7 +1067,7 @@ jobs:
               "type": "ListRepos",
               "params": {
                 "query": {
-                  "tags": ["${{ inputs.environment }}"]
+                  "tags": ["${{ env.ENVIRONMENT }}"]
                 }
               }
             }' \
@@ -1132,7 +1132,7 @@ jobs:
               "type": "ListRepos",
               "params": {
                 "query": {
-                  "tags": ["${{ inputs.environment }}"]
+                  "tags": ["${{ env.ENVIRONMENT }}"]
                 }
               }
             }' \
@@ -1271,7 +1271,7 @@ jobs:
               -d "{
                 \"type\": \"$DEPLOY_TYPE\",
                 \"params\": {
-                  \"pattern\": \"ucollect-internal-prod-*\"
+                  \"pattern\": \"${{ env.ENVIRONMENT }}-*\"
                 }
               }" \
               "${{ secrets.KOMODO_API_URL }}/execute")
@@ -1306,7 +1306,7 @@ jobs:
               -d "{
                 \"type\": \"BatchDeployStackIfChanged\",
                 \"params\": {
-                  \"pattern\": \"ucollect-internal-prod-*\"
+                  \"pattern\": \"${{ env.ENVIRONMENT }}-*\"
                 }
               }" \
               "${{ secrets.KOMODO_API_URL }}/execute")
