@@ -1,0 +1,62 @@
+name: Deploy Infrastructure Reusable
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: Environment name
+        required: true
+        type: string
+      resource_sync_name:
+        description: ResourceSync name
+        required: true
+        type: string
+      repo_name:
+        description: Repository name
+        required: true
+        type: string
+    secrets:
+      KOMODO_API_URL:
+        required: true
+      KOMODO_API_KEY:
+        required: true
+      KOMODO_API_SECRET:
+        required: true
+
+env:
+  ENVIRONMENT: ${{ inputs.environment }}
+  RESOURCE_SYNC_NAME: ${{ inputs.resource_sync_name }}
+  REPO_NAME: ${{ inputs.repo_name }}
+
+jobs:
+  validate:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Validate inputs
+        run: |
+          echo "Validating inputs for environment: ${{ inputs.environment }}"
+          if [[ ! "${{ inputs.environment }}" =~ ^[a-z0-9-]+$ ]]; then
+            echo "::error::Invalid environment name"
+            exit 1
+          fi
+          echo "✅ Inputs validated"
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      
+      - name: Install validation tools
+        run: |
+          pip install pyyaml requests -q
+      
+      - name: Test validation
+        run: |
+          echo "✅ Validation job completed successfully"
+          echo "Environment: ${{ inputs.environment }}"
+          echo "Resource sync: ${{ inputs.resource_sync_name }}"
+          echo "Repository: ${{ inputs.repo_name }}"
