@@ -146,8 +146,8 @@ jobs:
 
             curl -s -X POST \
               -H "Content-Type: application/json" \
-              -H "X-API-KEY": ${{ secrets.KOMODO_API_KEY }} \
-              -H "X-API-SECRET": ${{ secrets.KOMODO_API_SECRET }} \
+              -H "X-API-KEY: ${{ secrets.KOMODO_API_KEY }}" \
+              -H "X-API-SECRET: ${{ secrets.KOMODO_API_SECRET }}" \
               --data-binary @- \
               "${{ secrets.KOMODO_API_URL }}/$endpoint" <<< "$payload"
           }
