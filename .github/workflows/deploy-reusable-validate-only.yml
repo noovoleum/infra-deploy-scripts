@@ -1,0 +1,500 @@
+# GitHub Actions CI/CD for Komodo Infrastructure Deployment
+# Replaces webhook-based deployment with direct Komodo API calls
+# 
+# Triggers: Push to main (PR merge, direct push)
+# Flow: Validate → Detect Changes → Deploy via Komodo API
+#
+# Required Secrets:
+#   KOMODO_API_URL      - Komodo API endpoint (e.g., https://komodo.example.com/api)
+#   KOMODO_API_KEY      - Komodo API key for authentication
+#   KOMODO_API_SECRET   - Komodo API secret for authentication
+
+name: Deploy Infrastructure Reusable
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment name (e.g., singapore-prod, singapore-qa)'
+        required: true
+        type: string
+      resource_sync_name:
+        description: 'ResourceSync name in Komodo'
+        required: true
+        type: string
+      repo_name:
+        description: 'Repository name'
+        required: true
+        type: string
+      force_deploy:
+        description: 'Force deploy all stacks (ignore change detection)'
+        required: false
+        default: false
+        type: boolean
+      redeploy_stacks:
+        description: 'Specific stacks to redeploy (comma-separated)'
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: 'Dry run mode (validate only, no deployment)'
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      KOMODO_API_URL:
+        required: true
+      KOMODO_API_KEY:
+        required: true
+      KOMODO_API_SECRET:
+        required: true
+
+env:
+  ENVIRONMENT: ${{ inputs.environment }}
+  RESOURCE_SYNC_NAME: ${{ inputs.resource_sync_name }}
+  REPO_NAME: ${{ inputs.repo_name }}
+
+jobs:
+  # ============================================================================
+  # VALIDATION JOB
+  # Validates all configuration files before deployment
+  # ============================================================================
+  validate:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      changes_detected: ${{ steps.detect-changes.outputs.changes_detected }}
+      stacks_added: ${{ steps.detect-changes.outputs.stacks_added }}
+      stacks_removed: ${{ steps.detect-changes.outputs.stacks_removed }}
+      stacks_modified: ${{ steps.detect-changes.outputs.stacks_modified }}
+      stacks_current: ${{ steps.detect-changes.outputs.stacks_current }}
+      stacks_desired: ${{ steps.detect-changes.outputs.stacks_desired }}
+      repos_added: ${{ steps.detect-changes.outputs.repos_added }}
+      repos_removed: ${{ steps.detect-changes.outputs.repos_removed }}
+      repos_modified: ${{ steps.detect-changes.outputs.repos_modified }}
+      repos_current: ${{ steps.detect-changes.outputs.repos_current }}
+      repos_desired: ${{ steps.detect-changes.outputs.repos_desired }}
+      servers_added: ${{ steps.detect-changes.outputs.servers_added }}
+      servers_removed: ${{ steps.detect-changes.outputs.servers_removed }}
+      servers_modified: ${{ steps.detect-changes.outputs.servers_modified }}
+      servers_current: ${{ steps.detect-changes.outputs.servers_current }}
+      servers_desired: ${{ steps.detect-changes.outputs.servers_desired }}
+      validation_passed: ${{ steps.final-status.outputs.passed }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need previous commit for diff
+      # ----------------------------------------------------------------------
+      # Input Validation - Security: Prevent malicious inputs
+      # ----------------------------------------------------------------------
+      - name: Validate inputs
+        run: |
+          echo "🔍 Validating workflow inputs..."
+          
+          # Validate environment name format (alphanumeric, hyphens only)
+          if [[ ! "${{ inputs.environment }}" =~ ^[a-z0-9-]+$ ]]; then
+            echo "::error::Invalid environment name '${{ inputs.environment }}'. Must contain only lowercase letters, numbers, and hyphens."
+            exit 1
+          fi
+          
+          # Validate resource_sync_name format
+          if [[ ! "${{ inputs.resource_sync_name }}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid resource_sync_name '${{ inputs.resource_sync_name }}'. Must contain only letters, numbers, hyphens, and underscores."
+            exit 1
+          fi
+          
+          # Validate repo_name format
+          if [[ ! "${{ inputs.repo_name }}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid repo_name '${{ inputs.repo_name }}'. Must contain only letters, numbers, hyphens, and underscores."
+            exit 1
+          fi
+          
+          # Validate redeploy_stacks format (if provided)
+          if [ -n "${{ inputs.redeploy_stacks }}" ]; then
+            # Check for valid characters (alphanumeric, hyphens, commas, spaces)
+            if [[ ! "${{ inputs.redeploy_stacks }}" =~ ^[a-zA-Z0-9_,-\ ]+$ ]]; then
+              echo "::error::Invalid redeploy_stacks '${{ inputs.redeploy_stacks }}'. Contains invalid characters."
+              exit 1
+            fi
+          fi
+          
+          echo "✅ All inputs validated"
+
+
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install validation tools
+        run: |
+          # pyyaml for compose validation, requests for API calls
+          # tomllib is built-in to Python 3.11+, openssl/jq/curl are pre-installed on ubuntu-latest
+          pip install pyyaml requests -q
+      
+      - name: Setup secure API helpers
+        run: |
+          # API helper functions for secure JSON encoding
+          api_call() {
+            local endpoint="$1"
+            shift
+            local payload
+            payload=$(jq -n "$@")
+
+            curl -s -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-KEY": ${{ secrets.KOMODO_API_KEY }} \
+              -H "X-API-SECRET": ${{ secrets.KOMODO_API_SECRET }} \
+              --data-binary @- \
+              "${{ secrets.KOMODO_API_URL }}/$endpoint" <<< "$payload"
+          }
+
+          # Export for use in subshells
+          export -f api_call
+
+          # Retry helper for transient failures
+          retry_api_call() {
+            local max_attempts=3
+            local attempt=1
+            local response=""
+            local exit_code=0
+
+            while [ $attempt -le $max_attempts ]; do
+                echo "🔄 API attempt $attempt/$max_attempts..." >&2
+                response=$(eval "$@")
+                exit_code=$?
+
+                if [ $exit_code -eq 0 ]; then
+                    echo "$response"
+                    return 0
+                fi
+
+                if [ $attempt -lt $max_attempts ]; then
+                    local wait_time=$((attempt * 2))
+                    echo "⚠️ Request failed, waiting ${wait_time}s before retry..." >&2
+                    sleep $wait_time
+                fi
+
+                attempt=$((attempt + 1))
+            done
+
+            echo "$response"
+            return $exit_code
+          }
+
+          export -f retry_api_call
+
+          echo "✅ Secure API helpers configured"
+        env:
+          KOMODO_API_URL: ${{ secrets.KOMODO_API_URL }}
+          KOMODO_API_KEY: ${{ secrets.KOMODO_API_KEY }}
+          KOMODO_API_SECRET: ${{ secrets.KOMODO_API_SECRET }}
+
+
+      # ----------------------------------------------------------------------
+      # Secret Scanning - Prevent accidental secret commits
+      # ----------------------------------------------------------------------
+      - name: Scan for unencrypted secrets
+        id: secret-scan
+        run: |
+          echo "🔍 Scanning for unencrypted .env files..."
+          UNENCRYPTED_FILES=""
+          EXIT_CODE=0
+          
+          # Find all .env files that are NOT .env.encrypted or .env.example
+          while IFS= read -r -d '' file; do
+            filename=$(basename "$file")
+            if [[ "$filename" == ".env" ]]; then
+              UNENCRYPTED_FILES="$UNENCRYPTED_FILES$file\n"
+              echo "::error file=$file::Unencrypted .env file detected! This file should NOT be committed."
+              EXIT_CODE=1
+            fi
+          done < <(find stacks -name ".env" -type f -print0 2>/dev/null || true)
+          
+          if [ $EXIT_CODE -eq 1 ]; then
+            echo "❌ SECURITY VIOLATION: Unencrypted .env files found!"
+            echo "unencrypted_found=true" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "✅ No unencrypted .env files found"
+            echo "unencrypted_found=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify encrypted files exist for all stacks
+        id: verify-encrypted
+        run: |
+          echo "🔐 Verifying .env.encrypted files exist for all stacks..."
+          MISSING_ENCRYPTED=""
+          EXIT_CODE=0
+          
+          # Get all stack directories from stacks.toml
+          STACK_DIRS=$(grep -oP 'run_directory\s*=\s*"\K[^"]+' stacks/stacks.toml 2>/dev/null || true)
+          
+          for stack_dir in $STACK_DIRS; do
+            if [ -d "$stack_dir" ]; then
+              # Check if stack uses additional_env_files (means it needs .env)
+              stack_name=$(basename "$stack_dir")
+              if [ ! -f "$stack_dir/.env.encrypted" ]; then
+                # Check if this stack actually uses env files
+                if grep -q "additional_env_files.*\\.env" stacks/stacks.toml; then
+                  echo "::warning file=$stack_dir::Missing .env.encrypted for stack: $stack_name"
+                  MISSING_ENCRYPTED="$MISSING_ENCRYPTED$stack_dir\n"
+                fi
+              else
+                echo "✅ Found .env.encrypted for $stack_name"
+              fi
+            fi
+          done
+          
+          if [ -n "$MISSING_ENCRYPTED" ]; then
+            echo "⚠️ Some stacks may be missing encrypted environment files"
+            echo "missing_found=true" >> $GITHUB_OUTPUT
+          else
+            echo "✅ All stacks have encrypted environment files"
+            echo "missing_found=false" >> $GITHUB_OUTPUT
+          fi
+
+      # ----------------------------------------------------------------------
+      # TOML Validation
+      # ----------------------------------------------------------------------
+      - name: Validate TOML syntax
+        id: validate-toml
+        run: |
+          echo "📋 Validating TOML configuration files..."
+          EXIT_CODE=0
+          
+          for toml_file in resource_sync.toml stacks/stacks.toml servers/servers.toml; do
+            if [ -f "$toml_file" ]; then
+              echo "Checking $toml_file..."
+              if python3 -c "import tomllib; tomllib.load(open('$toml_file', 'rb'))" 2>&1; then
+                echo "  ✅ $toml_file is valid"
+              else
+                echo "::error file=$toml_file::Invalid TOML syntax"
+                EXIT_CODE=1
+              fi
+            fi
+          done
+          
+          if [ $EXIT_CODE -eq 1 ]; then
+            echo "toml_valid=false" >> $GITHUB_OUTPUT
+            exit 1
+          else
+            echo "toml_valid=true" >> $GITHUB_OUTPUT
+          fi
+
+      # ----------------------------------------------------------------------
+      # Docker Compose Validation
+      # ----------------------------------------------------------------------
+      - name: Validate Docker Compose files
+        id: validate-compose
+        run: |
+          echo "🐳 Validating Docker Compose files..."
+          EXIT_CODE=0
+          
+          # Find all compose files
+          for compose_file in $(find stacks -name "compose.yml" -o -name "compose.yaml" 2>/dev/null); do
+            echo "Checking $compose_file..."
+            stack_dir=$(dirname "$compose_file")
+            
+            # Create a dummy .env file for validation if it doesn't exist
+            if [ ! -f "$stack_dir/.env" ]; then
+              touch "$stack_dir/.env.tmp"
+              ENV_FILE="$stack_dir/.env.tmp"
+            else
+              ENV_FILE=""
+            fi
+            
+            # Validate compose file syntax (using docker compose config --quiet)
+            cd "$stack_dir"
+            if docker compose config --quiet 2>&1 || true; then
+              echo "  ✅ $compose_file is valid"
+            else
+              echo "::warning file=$compose_file::Docker Compose validation warning (may be due to missing .env)"
+            fi
+            cd - > /dev/null
+            
+            # Clean up temp file
+            [ -n "$ENV_FILE" ] && rm -f "$ENV_FILE"
+          done
+          
+          echo "compose_valid=true" >> $GITHUB_OUTPUT
+
+      # ----------------------------------------------------------------------
+      # Komodo Resource Schema Validation
+      # ----------------------------------------------------------------------
+      - name: Validate Komodo resource schema
+        id: validate-schema
+        run: |
+          echo "📐 Validating Komodo resource schema..."
+          
+          python3 << 'EOF'
+          import tomllib
+          import sys
+          
+          errors = []
+          warnings = []
+          
+          # Validate stacks.toml
+          try:
+              with open('stacks/stacks.toml', 'rb') as f:
+                  stacks = tomllib.load(f)
+              for stack in stacks.get('stack', []):
+                  name = stack.get('name', 'unknown')
+                  config = stack.get('config', {})
+                  
+                  # Required fields
+                  if not stack.get('name'):
+                    errors.append(f"Stack missing 'name' field")
+                  if not config.get('server'):
+                    errors.append(f"Stack '{name}' missing 'server' in config")
+                  if not config.get('run_directory'):
+                    errors.append(f"Stack '{name}' missing 'run_directory' in config")
+                  
+                  # Validate tags include environment tag
+                  tags = stack.get('tags', [])
+                  if MATCH_TAG not in tags:
+                    warnings.append(f"Stack '{name}' missing '{MATCH_TAG}' tag")
+
+                  # Validate linked_repo matches expected pattern (repo-per-server)
+                  linked_repo = config.get('linked_repo', '')
+                  if linked_repo and not linked_repo.startswith(os.environ.get('REPO_NAME', 'infra-deploy')):
+                    warnings.append(f"Stack '{name}' has unexpected linked_repo: {linked_repo}")
+          except Exception as e:
+              errors.append(f"Failed to parse stacks.toml: {e}")
+          
+          # Validate servers.toml
+          try:
+              with open('servers/servers.toml', 'rb') as f:
+                  servers = tomllib.load(f)
+              server_names = [s.get('name') for s in servers.get('server', [])]
+              
+              # Check all stacks reference valid servers
+              with open('stacks/stacks.toml', 'rb') as f:
+                  stacks = tomllib.load(f)
+              for stack in stacks.get('stack', []):
+                  server = stack.get('config', {}).get('server')
+                  if server and server not in server_names:
+                      errors.append(f"Stack '{stack.get('name')}' references unknown server '{server}'")
+                      
+          except Exception as e:
+              errors.append(f"Failed to validate server references: {e}")
+          
+          # Output results
+          for warning in warnings:
+              print(f"::warning::{warning}")
+          
+          for error in errors:
+              print(f"::error::{error}")
+          
+          if errors:
+              print(f"\n❌ Schema validation failed with {len(errors)} error(s)")
+              sys.exit(1)
+          else:
+              print(f"\n✅ Schema validation passed ({len(warnings)} warning(s))")
+              sys.exit(0)
+          EOF
+
+      # ----------------------------------------------------------------------
+      # Change Detection - Compare TOML files against Komodo current state
+      # ----------------------------------------------------------------------
+      - name: Detect changes against Komodo state
+        id: detect-changes
+        env:
+          KOMODO_API_URL: ${{ secrets.KOMODO_API_URL }}
+          KOMODO_API_KEY: ${{ secrets.KOMODO_API_KEY }}
+          KOMODO_API_SECRET: ${{ secrets.KOMODO_API_SECRET }}
+          DEBUG_KOMODO_PAYLOADS: ${{ vars.KOMODO_DEBUG_PAYLOADS || 'false' }}
+        run: |
+          echo "🔄 Comparing desired state against Komodo current state..."
+          
+          python3 << 'EOF'
+          import tomllib
+          import json
+          import requests
+          import os
+          
+          API_URL = os.environ.get('KOMODO_API_URL')
+          API_KEY = os.environ.get('KOMODO_API_KEY')
+          API_SECRET = os.environ.get('KOMODO_API_SECRET')
+          
+          MATCH_TAG = os.environ.get('ENVIRONMENT')
+          
+          headers = {
+              "Content-Type": "application/json",
+              "X-API-KEY": API_KEY,
+              "X-API-SECRET": API_SECRET
+          }
+          
+          def api_read(request_type, params=None):
+              """Query Komodo read API"""
+              try:
+                  resp = requests.post(
+                      f"{API_URL}/read",
+                      headers=headers,
+                      json={"type": request_type, "params": params or {}}
+                  )
+                  data = resp.json()
+                  if os.environ.get("DEBUG_KOMODO_PAYLOADS") == "true":
+                      print(f"\n--- RAW {request_type} RESPONSE ---")
+                      try:
+                          print(json.dumps(data, indent=2)[:20000])
+                      except Exception:
+                          print(str(data)[:20000])
+                  if "error" in data:
+                      # Some endpoints may return partial data with an error (e.g., missing file contents).
+                      if isinstance(data, dict) and len(data.keys()) > 1:
+                          print(f"API Warning ({request_type}): {data['error']}")
+                          return [data]
+                      print(f"API Error ({request_type}): {data['error']}")
+                      return []
+                  # API returns a list directly for List* operations
+                  return data if isinstance(data, list) else [data] if data else []
+              except Exception as e:
+                  print(f"API Exception ({request_type}): {e}")
+                  return []
+
+          def extract_id(value):
+              if isinstance(value, dict) and "$oid" in value:
+                  return value.get("$oid")
+              return value
+
+          def get_tags(query=None):
+              params = {"query": query} if query else {}
+              tags = api_read("ListTags", params)
+              return tags if isinstance(tags, list) else []
+
+          def get_tag_id_by_name(name):
+              tags = get_tags({"name": name})
+              for tag in tags:
+                  if tag.get("name") == name:
+                      return extract_id(tag.get("id") or tag.get("_id"))
+              return None
+
+          def get_komodo_resources(resource_type, desired_names=None):
+              """Get detailed resources; use list to discover names, then fetch full details."""
+              list_map = {
+                  "stack": "ListStacks",
+                  "repo": "ListRepos",
+                  "server": "ListServers"
+              }
+              get_map = {
+                  "stack": "GetStack",
+                  "repo": "GetRepo",
+                  "server": "GetServer"
+              }
+              param_key = {
+                  "stack": "stack",
+                  "repo": "repo",
+                  "server": "server"
+              }
+
+              tag_id = get_tag_id_by_name(MATCH_TAG)
+              query_tags = [tag_id] if tag_id else [MATCH_TAG]
+              resources = api_read(list_map[resource_type], {"query": {"tags": query_tags}})
+
+              # If servers exist without the environment tag but have matching names,
+              # include them so we don't treat them as newly added.
+              if resource_type == "server" and desired_names:
