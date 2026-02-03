@@ -1,0 +1,13 @@
+name: Test With Curl
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    uses: noovoleum/infra-deploy-scripts/.github/workflows/deploy-reusable-with-curl.yml@main
+    with:
+      environment: singapore-qa
+    secrets:
+      KOMODO_API_URL: ${{ secrets.KOMODO_API_URL }}
+      KOMODO_API_KEY: ${{ secrets.KOMODO_API_KEY }}
