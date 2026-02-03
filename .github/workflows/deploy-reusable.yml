@@ -142,7 +142,7 @@ jobs:
             local endpoint="$1"
             shift
             local payload
-            payload=$(jq -n "$@"")
+            payload=$(jq -n "$@")
 
             curl -s -X POST \
               -H "Content-Type: application/json" \
