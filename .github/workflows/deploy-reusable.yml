@@ -9,7 +9,7 @@
 #   KOMODO_API_KEY      - Komodo API key for authentication
 #   KOMODO_API_SECRET   - Komodo API secret for authentication
 
-name: Deploy Infrastructure (Reusable)
+name: Deploy Infrastructure Reusable
 
 on:
   workflow_call:
