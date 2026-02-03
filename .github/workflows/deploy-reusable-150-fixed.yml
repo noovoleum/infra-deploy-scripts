@@ -1,0 +1,150 @@
+# GitHub Actions CI/CD for Komodo Infrastructure Deployment
+# Replaces webhook-based deployment with direct Komodo API calls
+# 
+# Triggers: Push to main (PR merge, direct push)
+# Flow: Validate → Detect Changes → Deploy via Komodo API
+#
+# Required Secrets:
+#   KOMODO_API_URL      - Komodo API endpoint (e.g., https://komodo.example.com/api)
+#   KOMODO_API_KEY      - Komodo API key for authentication
+#   KOMODO_API_SECRET   - Komodo API secret for authentication
+
+name: Deploy Infrastructure Reusable
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment name (e.g., singapore-prod, singapore-qa)'
+        required: true
+        type: string
+      resource_sync_name:
+        description: 'ResourceSync name in Komodo'
+        required: true
+        type: string
+      repo_name:
+        description: 'Repository name'
+        required: true
+        type: string
+      force_deploy:
+        description: 'Force deploy all stacks (ignore change detection)'
+        required: false
+        default: false
+        type: boolean
+      redeploy_stacks:
+        description: 'Specific stacks to redeploy (comma-separated)'
+        required: false
+        default: ''
+        type: string
+      dry_run:
+        description: 'Dry run mode (validate only, no deployment)'
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      KOMODO_API_URL:
+        required: true
+      KOMODO_API_KEY:
+        required: true
+      KOMODO_API_SECRET:
+        required: true
+
+env:
+  ENVIRONMENT: ${{ inputs.environment }}
+  RESOURCE_SYNC_NAME: ${{ inputs.resource_sync_name }}
+  REPO_NAME: ${{ inputs.repo_name }}
+
+jobs:
+  # ============================================================================
+  # VALIDATION JOB
+  # Validates all configuration files before deployment
+  # ============================================================================
+  validate:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+    outputs:
+      changes_detected: ${{ steps.detect-changes.outputs.changes_detected }}
+      stacks_added: ${{ steps.detect-changes.outputs.stacks_added }}
+      stacks_removed: ${{ steps.detect-changes.outputs.stacks_removed }}
+      stacks_modified: ${{ steps.detect-changes.outputs.stacks_modified }}
+      stacks_current: ${{ steps.detect-changes.outputs.stacks_current }}
+      stacks_desired: ${{ steps.detect-changes.outputs.stacks_desired }}
+      repos_added: ${{ steps.detect-changes.outputs.repos_added }}
+      repos_removed: ${{ steps.detect-changes.outputs.repos_removed }}
+      repos_modified: ${{ steps.detect-changes.outputs.repos_modified }}
+      repos_current: ${{ steps.detect-changes.outputs.repos_current }}
+      repos_desired: ${{ steps.detect-changes.outputs.repos_desired }}
+      servers_added: ${{ steps.detect-changes.outputs.servers_added }}
+      servers_removed: ${{ steps.detect-changes.outputs.servers_removed }}
+      servers_modified: ${{ steps.detect-changes.outputs.servers_modified }}
+      servers_current: ${{ steps.detect-changes.outputs.servers_current }}
+      servers_desired: ${{ steps.detect-changes.outputs.servers_desired }}
+      validation_passed: ${{ steps.final-status.outputs.passed }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2  # Need previous commit for diff
+      # ----------------------------------------------------------------------
+      # Input Validation - Security: Prevent malicious inputs
+      # ----------------------------------------------------------------------
+      - name: Validate inputs
+        run: |
+          echo "🔍 Validating workflow inputs..."
+          
+          # Validate environment name format (alphanumeric, hyphens only)
+          if [[ ! "${{ inputs.environment }}" =~ ^[a-z0-9-]+$ ]]; then
+            echo "::error::Invalid environment name '${{ inputs.environment }}'. Must contain only lowercase letters, numbers, and hyphens."
+            exit 1
+          fi
+          
+          # Validate resource_sync_name format
+          if [[ ! "${{ inputs.resource_sync_name }}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid resource_sync_name '${{ inputs.resource_sync_name }}'. Must contain only letters, numbers, hyphens, and underscores."
+            exit 1
+          fi
+          
+          # Validate repo_name format
+          if [[ ! "${{ inputs.repo_name }}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            echo "::error::Invalid repo_name '${{ inputs.repo_name }}'. Must contain only letters, numbers, hyphens, and underscores."
+            exit 1
+          fi
+          
+          # Validate redeploy_stacks format (if provided)
+          if [ -n "${{ inputs.redeploy_stacks }}" ]; then
+            # Check for valid characters (alphanumeric, hyphens, commas, spaces)
+            if [[ ! "${{ inputs.redeploy_stacks }}" =~ ^[a-zA-Z0-9_,-\ ]+$ ]]; then
+              echo "::error::Invalid redeploy_stacks '${{ inputs.redeploy_stacks }}'. Contains invalid characters."
+              exit 1
+            fi
+          fi
+          
+          echo "✅ All inputs validated"
+
+
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install validation tools
+        run: |
+          # pyyaml for compose validation, requests for API calls
+          # tomllib is built-in to Python 3.11+, openssl/jq/curl are pre-installed on ubuntu-latest
+          pip install pyyaml requests -q
+      
+      - name: Setup secure API helpers
+        run: |
+          # API helper functions for secure JSON encoding
+          api_call() {
+            local endpoint="$1"
+            shift
+            local payload
+            payload=$(jq -n "$@")
+
+            curl -s -X POST \
+              -H "Content-Type: application/json" \
+              -H "X-API-KEY: ${{ secrets.KOMODO_API_KEY }}" \
+              -H "X-API-SECRET: ${{ secrets.KOMODO_API_SECRET }}" \
