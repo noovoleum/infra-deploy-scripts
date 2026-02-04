@@ -46,10 +46,19 @@ cd "$REPO_ROOT" || exit 1
 
 STACK_NAME=$1
 SECRET_KEY="$2"
+FORCE_ENCRYPT=""
+
+# Handle flags
+if [ "$STACK_NAME" = "--force" ]; then
+    FORCE_ENCRYPT="--force"
+    STACK_NAME="$2"
+    SECRET_KEY="$3"
+fi
 
 if [ -z "$STACK_NAME" ]; then
-    echo "Usage: $0 <stack-name> [secret-key]"
+    echo "Usage: $0 [--force] <stack-name> [secret-key]"
     echo "Example: $0 example-stack"
+    echo "         $0 --force example-stack"
     echo "         $0 example-stack my-secret-key-123"
     exit 1
 fi
@@ -76,6 +85,15 @@ ENCRYPTED_FILE="$STACK_DIR/.env.encrypted"
 if [ ! -f "$ENV_FILE" ]; then
     echo "Error: $ENV_FILE not found"
     exit 1
+fi
+
+# Skip encryption if .env is older than .env.encrypted and hasn't changed
+if [ -f "$ENCRYPTED_FILE" ] && [ -z "$FORCE_ENCRYPT" ]; then
+    if [ "$ENV_FILE" -ot "$ENCRYPTED_FILE" ]; then
+        echo "✓ Skipping: $ENV_FILE unchanged (older than $ENCRYPTED_FILE)"
+        echo "  Use 'just encrypt --force $STACK_NAME' to force re-encryption"
+        exit 0
+    fi
 fi
 
 # Check if OpenSSL is available
