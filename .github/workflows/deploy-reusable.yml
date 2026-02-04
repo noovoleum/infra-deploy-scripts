@@ -269,13 +269,15 @@ jobs:
         id: validate-schema
         run: |
           echo "📐 Validating Komodo resource schema..."
-          
+
           python3 << 'EOF'
           import tomllib
           import sys
-          
+          import os
+
           errors = []
           warnings = []
+          MATCH_TAG = os.environ.get('ENVIRONMENT')
           
           # Validate stacks.toml
           try:
