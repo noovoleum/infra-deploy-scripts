@@ -30,7 +30,7 @@ on:
         description: 'Force deploy all stacks (ignore change detection)'
         required: false
         default: false
-        type: boolean
+        type: string
       redeploy_stacks:
         description: 'Specific stacks to redeploy (comma-separated)'
         required: false
@@ -40,7 +40,7 @@ on:
         description: 'Dry run mode (validate only, no deployment)'
         required: false
         default: false
-        type: boolean
+        type: string
     secrets:
       KOMODO_API_URL:
         required: true
