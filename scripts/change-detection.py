@@ -9,8 +9,13 @@ import json
 import requests
 import os
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import partial
+
+try:
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+except ImportError as e:
+    print(f"❌ Error: Required module not available: {e}")
+    sys.exit(2)
+
 
 API_URL = os.environ.get('KOMODO_API_URL')
 API_KEY = os.environ.get('KOMODO_API_KEY')
@@ -452,8 +457,12 @@ def main():
     # Write outputs to GITHUB_OUTPUT
     def write_output(name, items):
         value = "\\n".join(items) if items else ""
-        with open(os.environ["GITHUB_OUTPUT"], "a") as f:
-            f.write(f"{name}={value}\n")
+        output_path = os.environ.get("GITHUB_OUTPUT")
+        if output_path:
+            with open(output_path, "a") as f:
+                f.write(f"{name}={value}\n")
+        else:
+            print(f"  OUTPUT: {name}={value}")
 
     write_output("changes_detected", [str(changes_detected).lower()])
     write_output("stacks_added", results["stacks"]["added"])
@@ -473,4 +482,11 @@ def main():
     write_output("servers_desired", results["servers"]["desired"])
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:
+        print(f"❌ Fatal error in change detection: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(2)
+

@@ -361,7 +361,10 @@ jobs:
           echo "🔄 Comparing desired state against Komodo current state..."
           echo "   (Using optimized parallel API calls)"
 
-          python3 lib/infra-deploy-scripts/scripts/change-detection.py
+          python3 lib/infra-deploy-scripts/scripts/change-detection.py || {
+            echo "::error::Change detection script failed with exit code $?"
+            exit 2
+          }
 
       # ----------------------------------------------------------------------
       # Final Validation Status
