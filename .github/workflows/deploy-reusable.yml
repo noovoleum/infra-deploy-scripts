@@ -30,7 +30,7 @@ on:
         description: 'Force deploy all stacks (ignore change detection)'
         required: false
         default: false
-        type: string
+        type: boolean
       redeploy_stacks:
         description: 'Specific stacks to redeploy (comma-separated)'
         required: false
@@ -40,7 +40,7 @@ on:
         description: 'Dry run mode (validate only, no deployment)'
         required: false
         default: false
-        type: string
+        type: boolean
     secrets:
       KOMODO_API_URL:
         required: true
@@ -773,8 +773,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: validate
     if: |
-      needs.validate.outputs.validation_passed == 'true' && 
-      inputs.dry_run != 'true'
+      needs.validate.outputs.validation_passed == 'true' &&
+      !inputs.dry_run
     environment: ${{ inputs.environment }}
     
     steps:
@@ -1255,8 +1255,8 @@ jobs:
         id: deploy-stacks
         run: |
           echo "🚀 Deploying stacks..."
-          
-          FORCE_DEPLOY="${{ inputs.force_deploy }}"
+
+          FORCE_DEPLOY="${{ inputs.force_deploy == true && 'true' || 'false' }}"
           REDEPLOY_STACKS="${{ inputs.redeploy_stacks }}"
           
           # If specific stacks are requested, deploy them individually
