@@ -66,27 +66,16 @@ setup:
     @echo "Setting up infra-deploy-scripts..."
     @./scripts/setup.sh
 
-install-just:
-    @echo "Installing 'just' command runner..."
-    @if command -v apt >/dev/null 2>&1; then \
-        echo "Detected Debian/Ubuntu. Installing via cargo..."; \
-        if ! command -v cargo >/dev/null 2>&1; then \
-            echo "Installing rust/cargo first..."; \
-            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; \
-            source $$HOME/.cargo/env; \
-        fi; \
-        cargo install just; \
-    elif command -v brew >/dev/null 2>&1; then \
-        echo "Detected macOS. Installing via brew..."; \
-        brew install just; \
-    elif command -v pacman >/dev/null 2>&1; then \
-        echo "Detected Arch Linux. Installing via pacman..."; \
-        sudo pacman -S just; \
+update-justfile:
+    @echo "Updating justfile from template..."
+    @if [ -f "lib/infra-deploy-scripts/justfile" ]; then \
+        cp lib/infra-deploy-scripts/justfile justfile; \
+        echo "✓ justfile updated from lib/infra-deploy-scripts/justfile"; \
     else \
-        echo "Could not detect package manager."; \
-        echo "Please install 'just' manually:"; \
-        echo "  cargo install just"; \
-        echo "Or visit: https://github.com/casey/just#installation"; \
+        echo "✗ Error: lib/infra-deploy-scripts/justfile not found"; \
+        echo "  Make sure the submodule is initialized:"; \
+        echo "  just submodule-init"; \
+        exit 1; \
     fi
 
 # Utility commands
@@ -129,7 +118,6 @@ help:
     @echo "  just submodule-status  Show submodule status"
     @echo ""
     @echo "Setup:"
-    @echo "  just install-just      Install 'just' command runner"
     @echo "  just setup             Run full setup"
     @echo ""
     @echo "Utilities:"

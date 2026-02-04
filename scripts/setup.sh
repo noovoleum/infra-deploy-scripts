@@ -114,23 +114,16 @@ fi
 
 echo ""
 
-# Create symlink/copy of justfile in parent directory
+# Create copy of justfile in parent directory (not symlink for Windows compatibility)
 if [ "$IS_SUBMODULE" = true ]; then
     if [ ! -f "$PARENT_DIR/justfile" ]; then
-        echo "Creating justfile symlink in parent directory..."
-        ln -sf "$REPO_ROOT/justfile" "$PARENT_DIR/justfile"
-        echo -e "${GREEN}✓ Created symlink: $PARENT_DIR/justfile -> $REPO_ROOT/justfile${NC}"
+        echo "Copying justfile to parent directory..."
+        cp "$REPO_ROOT/justfile" "$PARENT_DIR/justfile"
+        echo -e "${GREEN}✓ Created justfile in: $PARENT_DIR/justfile${NC}"
     else
-        if [ -L "$PARENT_DIR/justfile" ]; then
-            echo -e "${GREEN}✓ justfile symlink already exists${NC}"
-        else
-            echo -e "${YELLOW}Warning: justfile already exists in parent directory (not a symlink)${NC}"
-            echo "  Please remove it manually if you want to use the infra-deploy-scripts justfile:"
-            echo "  rm $PARENT_DIR/justfile"
-            echo "  ln -s $REPO_ROOT/justfile $PARENT_DIR/justfile"
-        fi
+        echo -e "${GREEN}✓ justfile already exists in parent directory${NC}"
     fi
-    
+
     echo ""
     echo "=== Setup Complete! ==="
     echo ""
@@ -145,6 +138,7 @@ if [ "$IS_SUBMODULE" = true ]; then
     echo "    just list-stacks        List all available stacks"
     echo "    just setup-key          Set up local encryption key"
     echo "    just status             Show repository status"
+    echo "    just update-justfile    Update justfile from latest template"
     echo ""
     echo "  See all commands:"
     echo "    just --list"
