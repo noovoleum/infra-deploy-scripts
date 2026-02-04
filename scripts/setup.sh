@@ -14,8 +14,21 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-# Get the parent directory (should be the infra-deploy-* repo)
-PARENT_DIR="$(cd "$REPO_ROOT/.." && pwd)"
+# Find the parent repository root by going up until we find a .git directory (not a file)
+# This handles submodules at various depths (e.g., lib/infra-deploy-scripts, infra-deploy-scripts)
+PARENT_DIR="$REPO_ROOT"
+while [ "$PARENT_DIR" != "/" ]; do
+    if [ -d "$PARENT_DIR/.git" ]; then
+        # Found the parent repository
+        break
+    fi
+    PARENT_DIR="$(cd "$PARENT_DIR/.." && pwd)"
+done
+
+if [ "$PARENT_DIR" = "/" ]; then
+    echo -e "${RED}Error: Could not find parent repository root${NC}"
+    exit 1
+fi
 
 echo "=== infra-deploy-scripts Setup ==="
 echo ""
