@@ -83,9 +83,17 @@ fi
 echo ""
 
 # Check if we're in a submodule
-if [ -f "$REPO_ROOT/.git" ] && [ "$(cat "$REPO_ROOT/.git")" = "gitdir: ../.git/modules/infra-deploy-scripts" ]; then
-    echo -e "${GREEN}✓ Detected: Running as git submodule${NC}"
-    IS_SUBMODULE=true
+if [ -f "$REPO_ROOT/.git" ]; then
+    GIT_FILE_CONTENT="$(cat "$REPO_ROOT/.git")"
+    # Check various possible submodule path patterns
+    if echo "$GIT_FILE_CONTENT" | grep -q "gitdir: .*modules/.*infra-deploy-scripts"; then
+        echo -e "${GREEN}✓ Detected: Running as git submodule${NC}"
+        IS_SUBMODULE=true
+    else
+        echo -e "${YELLOW}Note: .git file exists but doesn't match expected submodule pattern${NC}"
+        echo "  Content: $GIT_FILE_CONTENT"
+        IS_SUBMODULE=false
+    fi
 else
     echo -e "${YELLOW}Note: Not running as a git submodule${NC}"
     IS_SUBMODULE=false
