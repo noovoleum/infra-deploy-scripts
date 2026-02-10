@@ -123,10 +123,27 @@ decrypt_value() {
     # Decode base64 to binary, then decrypt with OpenSSL
     # Use base64 -d for decoding (most systems) or base64 -D (older macOS)
     if echo "$encrypted_b64" | base64 -d >/dev/null 2>&1; then
-        echo "$encrypted_b64" | base64 -d | "$OPENSSL_CMD" enc -aes-256-cbc -d -pbkdf2 -pass pass:"$SECRET_KEY" 2>/dev/null
+        set +e
+        decrypted=$(echo "$encrypted_b64" | base64 -d | "$OPENSSL_CMD" enc -aes-256-cbc -d -pbkdf2 -pass pass:"$SECRET_KEY" 2>&1)
+        openssl_exit=$?
+        set -e
+        if [ $openssl_exit -ne 0 ]; then
+            echo "Incorrect decryption key (OpenSSL error)" >&2
+            return 1
+        fi
+        echo "$decrypted"
     elif echo "$encrypted_b64" | base64 -D >/dev/null 2>&1; then
-        echo "$encrypted_b64" | base64 -D | "$OPENSSL_CMD" enc -aes-256-cbc -d -pbkdf2 -pass pass:"$SECRET_KEY" 2>/dev/null
+        set +e
+        decrypted=$(echo "$encrypted_b64" | base64 -D | "$OPENSSL_CMD" enc -aes-256-cbc -d -pbkdf2 -pass pass:"$SECRET_KEY" 2>&1)
+        openssl_exit=$?
+        set -e
+        if [ $openssl_exit -ne 0 ]; then
+            echo "Incorrect decryption key (OpenSSL error)" >&2
+            return 1
+        fi
+        echo "$decrypted"
     else
+        echo "Invalid base64 data" >&2
         return 1
     fi
 }
@@ -164,22 +181,37 @@ while IFS= read -r line || [ -n "$line" ]; do
         fi
 
         # Decrypt the value
-        decrypted_value=$(decrypt_value "$encrypted_b64" 2>/dev/null)
+        set +e
+        decrypted_value=$(decrypt_value "$encrypted_b64" 2>&1)
+        decrypt_exit=$?
+        set -e
 
-        if [ $? -eq 0 ] && [ -n "$decrypted_value" ]; then
+        if [ $decrypt_exit -eq 0 ] && [ -n "$decrypted_value" ]; then
             echo "$key=$decrypted_value" >> "$TEMP_FILE"
+        elif [ $decrypt_exit -ne 0 ]; then
+            if echo "$decrypted_value" | grep -q "Incorrect decryption key"; then
+                echo "" >&2
+                echo "ERROR: Decryption failed for $STACK_NAME" >&2
+                echo "Key: $key" >&2
+                echo "Reason: Incorrect decryption key" >&2
+                echo "" >&2
+                echo "Fix: Update your encryption key and try again" >&2
+                echo "  just setup-key" >&2
+                echo "  just decrypt-all" >&2
+                echo "" >&2
+            else
+                echo "" >&2
+                echo "ERROR: Decryption failed for $STACK_NAME" >&2
+                echo "Key: $key" >&2
+                echo "Error: $decrypted_value" >&2
+                echo "" >&2
+            fi
+            rm -f "$TEMP_FILE"
+            exit 1
         elif [ -z "$decrypted_value" ]; then
             # Decryption succeeded but returned empty value
             echo "Warning: Decrypted empty value for key: $key, writing empty value" >&2
             echo "$key=" >> "$TEMP_FILE"
-        else
-            echo "Error: Failed to decrypt value for key: $key" >&2
-            echo "This could be due to:" >&2
-            echo "  - Incorrect decryption key" >&2
-            echo "  - Corrupted encrypted data" >&2
-            echo "  - Empty encrypted value" >&2
-            rm -f "$TEMP_FILE"
-            exit 1
         fi
     else
         # Not an encrypted value, keep as-is (for backward compatibility)

@@ -115,6 +115,32 @@ if [ -z "$OPENSSL_CMD" ]; then
     exit 1
 fi
 
+# Validate the key against an existing encrypted file when available
+if [ -f "$ENCRYPTED_FILE" ]; then
+    sample_encrypted=$(grep -m1 "ENCRYPTED:" "$ENCRYPTED_FILE" 2>/dev/null | sed 's/^[^=]*=ENCRYPTED://')
+    if [ -n "$sample_encrypted" ]; then
+        sample_encrypted=$(echo "$sample_encrypted" | tr -d '[:space:]\r\n')
+        decrypt_ok=1
+        if echo "$sample_encrypted" | base64 -d >/dev/null 2>&1; then
+            set +e
+            echo "$sample_encrypted" | base64 -d | "$OPENSSL_CMD" enc -aes-256-cbc -d -pbkdf2 -pass pass:"$SECRET_KEY" >/dev/null 2>&1
+            decrypt_ok=$?
+            set -e
+        elif echo "$sample_encrypted" | base64 -D >/dev/null 2>&1; then
+            set +e
+            echo "$sample_encrypted" | base64 -D | "$OPENSSL_CMD" enc -aes-256-cbc -d -pbkdf2 -pass pass:"$SECRET_KEY" >/dev/null 2>&1
+            decrypt_ok=$?
+            set -e
+        fi
+
+        if [ $decrypt_ok -ne 0 ]; then
+            echo "Error: Decryption key does not match existing $ENCRYPTED_FILE" >&2
+            echo "Fix: Update your key with 'just setup-key' and try again." >&2
+            exit 1
+        fi
+    fi
+fi
+
 # Function to encrypt a value
 encrypt_value() {
     local value="$1"

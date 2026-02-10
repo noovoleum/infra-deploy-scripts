@@ -5,6 +5,8 @@
 # Debug mode: Add --debug flag to any command to see detailed output
 # Example: just decrypt-all --debug
 
+set shell := ["bash", "-c"]
+
 # Set the default recipe
 default:
     @just --list
@@ -12,19 +14,19 @@ default:
 # Encryption/Decryption commands
 encrypt-all *FLAGS:
     @echo "Encrypting all .env files in stacks..."
-    @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-all-env.sh {{FLAGS}}
+    @bash ./scripts/encryption/encrypt-all-env.sh {{FLAGS}}
 
 decrypt-all *FLAGS:
     @echo "Decrypting all .env.encrypted files in stacks/..."
-    @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh {{FLAGS}}
+    @bash ./scripts/encryption/decrypt-all-env.sh {{FLAGS}}
 
 encrypt stack *FLAGS:
     @echo "Encrypting {{stack}}/.env..."
-    @sh ./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh {{stack}} {{FLAGS}}
+    @bash ./scripts/encryption/encrypt-env.sh {{stack}} {{FLAGS}}
 
 decrypt stack *FLAGS:
     @echo "Decrypting {{stack}}/.env.encrypted..."
-    @sh ./lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh {{stack}} {{FLAGS}}
+    @bash ./scripts/encryption/decrypt-env.sh {{stack}} {{FLAGS}}
 
 # Key management
 setup-key:

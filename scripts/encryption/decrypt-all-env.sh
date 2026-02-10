@@ -114,7 +114,8 @@ fi
 COUNT=$(echo "$ENCRYPTED_FILES" | wc -l | tr -d ' ')
 echo "Decrypting $COUNT .env file(s)..."
 
-echo "$ENCRYPTED_FILES" | while IFS= read -r encrypted_file; do
+FAILED=0
+while IFS= read -r encrypted_file; do
     stack_dir=$(dirname "$encrypted_file")
     stack_name=$(basename "$stack_dir")
     env_file="$stack_dir/.env"
@@ -126,16 +127,26 @@ echo "$ENCRYPTED_FILES" | while IFS= read -r encrypted_file; do
     fi
     
     # Decrypt the file
-    # Use sh to execute and capture output for debugging
-    OUTPUT=$(sh "$SCRIPT_DIR/decrypt-env.sh" "$stack_name" "$SECRET_KEY" 2>&1)
+    # Use bash to execute and capture output for debugging
+    set +e
+    OUTPUT=$(bash "$SCRIPT_DIR/decrypt-env.sh" "$stack_name" "$SECRET_KEY" 2>&1)
     EXIT_CODE=$?
+    set -e
     if [ $EXIT_CODE -eq 0 ]; then
         echo "  ✓ Decrypted $stack_name"
     else
         echo "  ✗ Failed to decrypt $stack_name" >&2
-        echo "    Error: $OUTPUT" >&2
+        echo "$OUTPUT" | sed 's/^/    /' >&2
+        FAILED=1
     fi
-done
+done <<EOF
+$ENCRYPTED_FILES
+EOF
+
+if [ $FAILED -ne 0 ]; then
+    echo "One or more stacks failed to decrypt." >&2
+    exit 1
+fi
 
 echo "Done!"
 

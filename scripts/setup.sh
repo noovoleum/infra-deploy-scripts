@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 # Setup script for infra-deploy-scripts
 # This script configures the justfile for the parent repository
 
