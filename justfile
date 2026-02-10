@@ -14,24 +14,24 @@ default:
 # Encryption/Decryption commands
 encrypt-all *FLAGS:
     @echo "Encrypting all .env files in stacks..."
-    @bash ./scripts/encryption/encrypt-all-env.sh {{FLAGS}}
+    @bash ./lib/infra-deploy-scripts/scripts/encryption/encrypt-all-env.sh {{FLAGS}}
 
 decrypt-all *FLAGS:
     @echo "Decrypting all .env.encrypted files in stacks/..."
-    @bash ./scripts/encryption/decrypt-all-env.sh {{FLAGS}}
+    @bash ./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh {{FLAGS}}
 
 encrypt stack *FLAGS:
     @echo "Encrypting {{stack}}/.env..."
-    @bash ./scripts/encryption/encrypt-env.sh {{stack}} {{FLAGS}}
+    @bash ./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh {{stack}} {{FLAGS}}
 
 decrypt stack *FLAGS:
     @echo "Decrypting {{stack}}/.env.encrypted..."
-    @bash ./scripts/encryption/decrypt-env.sh {{stack}} {{FLAGS}}
+    @bash ./lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh {{stack}} {{FLAGS}}
 
 # Key management
 setup-key:
     @echo "Setting up local encryption key..."
-    @bash ./scripts/setup-local-key.sh
+    @bash ./lib/infra-deploy-scripts/scripts/setup-local-key.sh
 
 # List all stacks
 list-stacks:
@@ -58,7 +58,7 @@ submodule-status:
 # Setup and installation
 setup:
     @echo "Setting up infra-deploy-scripts..."
-    @./scripts/setup.sh
+    @./lib/infra-deploy-scripts/scripts/setup.sh
 
 update-justfile:
     @echo "Updating justfile from template..."

@@ -81,16 +81,16 @@ This will verify all required tools are installed and show installation instruct
 
 ### Install Just Command Runner
 
-The setup script can install `just` automatically:
+The setup script can install `just` automatically and is safe to re-run:
 
 ```bash
 ./lib/infra-deploy-scripts/scripts/setup.sh
 ```
 
-Re-run setup if needed:
+Re-run any time to pick up updates:
 
 ```bash
-./lib/infra-deploy-scripts/scripts/setup.sh --force
+./lib/infra-deploy-scripts/scripts/setup.sh
 ```
 
 Or install manually:

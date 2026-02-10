@@ -49,11 +49,10 @@ while [ $# -gt 0 ]; do
 done
 
 SETUP_MARKER="${HOME:-$REPO_ROOT}/.infra-deploy-scripts-setup"
-if [ -f "$SETUP_MARKER" ] && [ "$FORCE" = false ]; then
+if [ -f "$SETUP_MARKER" ]; then
     SETUP_DATE=$(cat "$SETUP_MARKER" 2>/dev/null || echo "unknown")
-    echo "Setup already completed on $SETUP_DATE."
-    echo "Re-run with --force or delete $SETUP_MARKER."
-    exit 0
+    echo "Previous setup detected on $SETUP_DATE. Continuing with idempotent setup..."
+    echo ""
 fi
 
 echo "=== infra-deploy-scripts Setup ==="
