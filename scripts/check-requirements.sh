@@ -19,6 +19,17 @@ WARN=0
 echo "=== infra-deploy-scripts Requirements Check ==="
 echo ""
 
+OS_UNAME="$(uname -s 2>/dev/null || echo unknown)"
+case "$OS_UNAME" in
+    MINGW*|MSYS*|CYGWIN*)
+        echo -e "${RED}Windows detected. WSL is required for infra-deploy-scripts.${NC}"
+        echo "Install WSL (PowerShell as Administrator):"
+        echo "  wsl --install"
+        echo "Docs: https://learn.microsoft.com/windows/wsl/install"
+        exit 1
+        ;;
+esac
+
 # Function to check if a command exists
 command_exists() {
     command -v "$1" >/dev/null 2>&1

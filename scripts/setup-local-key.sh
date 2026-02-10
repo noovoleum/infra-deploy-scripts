@@ -5,7 +5,21 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Find the parent repo root by locating a real .git directory (not a submodule .git file)
+REPO_ROOT=""
+DIR="$SCRIPT_DIR"
+while [ "$DIR" != "/" ]; do
+    if [ -d "$DIR/.git" ]; then
+        REPO_ROOT="$DIR"
+        break
+    fi
+    DIR="$(cd "$DIR/.." && pwd)"
+done
+
+if [ -z "$REPO_ROOT" ]; then
+    REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+fi
 KEY_FILE="$REPO_ROOT/key.env"
 
 echo "Setting up local decryption key for .env files"

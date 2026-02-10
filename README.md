@@ -10,7 +10,7 @@ This repository provides shared scripts, just commands, and documentation for ma
 - 🔐 **Encryption/Decryption** - OpenSSL-based encryption for environment variables
 - ⚡ **Just Command Runner** - Simple, discoverable commands for common operations
 - 🔧 **Requirements Checker** - Automatic verification of required tools
-- 🪟 **Cross-Platform** - Full support for Linux, macOS, and Windows (via Git Bash)
+- 🪟 **Cross-Platform** - Full support for Linux, macOS, and Windows (via WSL)
 - 📦 **Git Submodule** - Easy integration and updates across all repos
 
 ---
@@ -29,8 +29,10 @@ git commit -m "Add infra-deploy-scripts submodule"
 
 ```bash
 ./lib/infra-deploy-scripts/scripts/check-requirements.sh  # Verify requirements
-./lib/infra-deploy-scripts/scripts/setup.sh               # Install just, create symlinks
+./lib/infra-deploy-scripts/scripts/setup.sh               # One-time dev setup
 ```
+
+**Windows:** Run the setup from WSL.
 
 ### 3. Start Using
 
@@ -83,6 +85,12 @@ The setup script can install `just` automatically:
 
 ```bash
 ./lib/infra-deploy-scripts/scripts/setup.sh
+```
+
+Re-run setup if needed:
+
+```bash
+./lib/infra-deploy-scripts/scripts/setup.sh --force
 ```
 
 Or install manually:
@@ -153,7 +161,6 @@ just submodule-status       # Show submodule status
 #### Setup Commands
 
 ```bash
-just install-just           # Install just command runner
 just setup                  # Run full setup
 just help                   # Show help message
 ```
@@ -265,147 +272,68 @@ brew install openssl just
 
 ### Windows
 
-We recommend using **Git Bash** for full shell script compatibility without needing separate PowerShell scripts.
+Windows requires **WSL** for infra-deploy-scripts. Git Bash is not supported.
 
-#### Why Git Bash?
+#### Windows Quick Start (WSL)
 
-- ✅ **Single script set** - No need to maintain both `.sh` and `.ps1` files
-- ✅ **Full compatibility** - Complete Unix-like environment on Windows
-- ✅ **Same commands** - Use the exact same commands as Linux/macOS users
-- ✅ **Better tools** - Access to Unix tools like `grep`, `sed`, `awk`, etc.
-- ✅ **Consistent experience** - Same workflows across all platforms
+1. **Install WSL** (PowerShell as Administrator)
+    ```powershell
+    wsl --install
+    ```
+    Docs: https://learn.microsoft.com/windows/wsl/install
 
-#### Windows Quick Start
+2. **Open WSL** and install tools
+    ```bash
+    sudo apt update
+    sudo apt install -y git openssl
+    ```
 
-1. **Install Git for Windows**
-   - Download from: https://git-scm.com/download/win
-   - Keep default settings
-   - Ensure "Git Bash Here" is enabled
-
-2. **Install OpenSSL** (if not included with Git Bash)
-   - Download from: https://slproweb.com/products/Win32OpenSSL.html
-   - Install "Win64 OpenSSL v3.x.x (Full)"
-   - Add to PATH: `C:\Program Files\OpenSSL-Win64\bin`
-
-3. **Open Git Bash** and run:
-   ```bash
-   ./lib/infra-deploy-scripts/scripts/check-requirements.sh
-   ./lib/infra-deploy-scripts/scripts/setup.sh
-   ```
+3. **From your repo root inside WSL**, run:
+    ```bash
+    ./lib/infra-deploy-scripts/scripts/check-requirements.sh
+    ./lib/infra-deploy-scripts/scripts/setup.sh
+    ```
 
 4. **Start using:**
-   ```bash
-   just decrypt-all
-   just encrypt-all
-   ```
+    ```bash
+    just decrypt-all
+    just encrypt-all
+    ```
 
-#### Windows-Specific Notes
+#### Windows Notes
 
-**File Paths:**
-Git Bash uses Unix-style paths:
-- Windows `C:\Users\Name` → Git Bash `/c/Users/Name`
-- Your project is likely at `/c/Users/YourName/Projects/infra-deploy-xxx`
-
-**Line Endings:**
-```bash
-# Configure git to handle line endings
-git config --global core.autocrlf true
-```
-
-**Permissions:**
-Git Bash on Windows doesn't enforce Unix permissions, but you can still use:
-```bash
-chmod +x script.sh  # Won't actually change permissions
-./script.sh         # Git Bash will still run it
-```
-
-#### Alternative: WSL
-
-If you prefer a more native Linux experience, you can use WSL:
-
-```powershell
-# In PowerShell (as Administrator)
-wsl --install
-```
-
-**Benefits:** Native Linux environment, better performance, apt package manager
-**Trade-offs:** Larger installation, more complex file system integration
-
-For most users, Git Bash is sufficient and simpler.
+- Best performance comes from cloning the repo inside WSL (e.g. `/home/<user>/...`).
+- You can access Windows files under `/mnt/c`, but file IO is slower there.
 
 ---
 
 ## PowerShell Integration
 
-If you prefer PowerShell, you can run shell scripts directly without opening Git Bash.
+If you want to stay in PowerShell on Windows, use WSL helpers.
 
-### Option 1: PowerShell Profile Functions (Recommended)
+### Option 1: Setup PowerShell WSL Helpers (Recommended)
 
-Add these functions to your PowerShell profile (`$PROFILE`):
+Run the setup script to install WSL-backed helpers into your PowerShell profile:
 
 ```powershell
-# Function to run shell scripts via Git Bash
-function sh {
-    param(
-        [Parameter(ValueFromRemainingArguments)]
-        [string[]]$Arguments
-    )
-
-    $bashPath = "C:\Program Files\Git\bin\bash.exe"
-
-    if (Test-Path $bashPath) {
-        & $bashPath -c @Arguments
-    } else {
-        Write-Error "Git Bash not found at $bashPath. Please install Git for Windows."
-    }
-}
-
-# Just command runner
-function just {
-    sh "just $args"
-}
-
-# Encryption shortcuts
-function Encrypt-Stack {
-    param([string]$Stack)
-    sh "./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh $Stack"
-}
-
-function Decrypt-Stack {
-    param([string]$Stack)
-    sh "./lib/infra-deploy-scripts/scripts/encryption/decrypt-env.sh $Stack"
-}
-
-function Encrypt-AllStacks {
-    sh "just encrypt-all"
-}
-
-function Decrypt-AllStacks {
-    sh "just decrypt-all"
-}
+PS> .\lib\infra-deploy-scripts\scripts\setup-powershell.ps1
 ```
 
-**Then you can run:**
+Then restart PowerShell and run commands from your repo root:
+
 ```powershell
+PS> sh ./lib/infra-deploy-scripts/scripts/setup.sh
+PS> just setup-key
 PS> just decrypt-all
-PS> just encrypt outline
-PS> Encrypt-Stack outline
-PS> Decrypt-Stack boxui-sim
 ```
 
-**Edit your PowerShell profile:**
-```powershell
-notepad $PROFILE
-# Add the functions above, save, and restart PowerShell
-```
+### Option 2: Use WSL Directly
 
-### Option 2: Direct Bash Invocation
+Open a WSL terminal and run the normal bash commands:
 
-No setup required - just call bash directly:
-
-```powershell
-PS> bash ./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh
-PS> bash ./lib/infra-deploy-scripts/scripts/encryption/encrypt-env.sh outline
+```bash
+./lib/infra-deploy-scripts/scripts/setup.sh
+just decrypt-all
 ```
 
 ---
@@ -474,7 +402,7 @@ This will show you which tools are missing and how to install them.
 
 **Linux:** `sudo apt install openssl` (or equivalent for your distro)
 **macOS:** `brew install openssl`
-**Windows:** Included with Git Bash or install from [slproweb.com](https://slproweb.com/products/Win32OpenSSL.html)
+**Windows (WSL):** `sudo apt install openssl`
 
 ### "just: command not found"
 
@@ -512,7 +440,7 @@ just submodule-init
 git submodule update --init --recursive
 ```
 
-### Line Ending Issues (Windows)
+### Line Ending Issues (Windows/WSL)
 
 ```bash
 # Configure git to handle line endings
@@ -522,9 +450,9 @@ git config --global core.autocrlf input
 dos2unix script.sh
 ```
 
-### Find Command Not Working (Windows)
+### Find Command Not Working (Windows/WSL)
 
-If you're running scripts from PowerShell and `find` doesn't work, the scripts automatically detect and use `/usr/bin/find` to avoid conflicts with Windows' `find.exe` command.
+When using the PowerShell WSL helpers, commands run inside WSL, so `find.exe` conflicts do not apply. The scripts still prefer `/usr/bin/find` when available.
 
 ### Script Permissions Denied
 
@@ -533,10 +461,10 @@ If you're running scripts from PowerShell and `find` doesn't work, the scripts a
 chmod +x ./lib/infra-deploy-scripts/scripts/**/*.sh
 ```
 
-**Windows (Git Bash):**
-Just use `sh script.sh` instead of `./script.sh`:
+**Windows (WSL):**
+Run scripts from WSL (or use the PowerShell WSL helpers):
 ```bash
-sh ./lib/infra-deploy-scripts/scripts/decrypt-all-env.sh
+./lib/infra-deploy-scripts/scripts/encryption/decrypt-all-env.sh
 ```
 
 ---
@@ -622,7 +550,7 @@ just encrypt outline
 
 When contributing changes:
 
-1. Test on multiple platforms (Linux, macOS, Windows with Git Bash)
+1. Test on multiple platforms (Linux, macOS, Windows with WSL)
 2. Update relevant documentation
 3. Test the requirements checker
 4. Ensure just commands work correctly
@@ -668,5 +596,5 @@ For issues or questions:
 - Encryption/decryption scripts with robust error handling
 - Just command runner integration
 - Requirements checker
-- Windows Git Bash support
+- Windows WSL support
 - Comprehensive documentation

@@ -1,6 +1,6 @@
 #!/bin/bash
 # Setup script for infra-deploy-scripts
-# This script configures the justfile for the parent repository
+# One-time developer workflow setup
 
 set -e
 
@@ -19,7 +19,6 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 PARENT_DIR="$REPO_ROOT"
 while [ "$PARENT_DIR" != "/" ]; do
     if [ -d "$PARENT_DIR/.git" ]; then
-        # Found the parent repository
         break
     fi
     PARENT_DIR="$(cd "$PARENT_DIR/.." && pwd)"
@@ -30,15 +29,80 @@ if [ "$PARENT_DIR" = "/" ]; then
     exit 1
 fi
 
+FORCE=false
+while [ $# -gt 0 ]; do
+    case "$1" in
+        --force|-f)
+            FORCE=true
+            ;;
+        --help|-h)
+            echo "Usage: $0 [--force]"
+            exit 0
+            ;;
+        *)
+            echo -e "${RED}Unknown option: $1${NC}"
+            echo "Usage: $0 [--force]"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+SETUP_MARKER="${HOME:-$REPO_ROOT}/.infra-deploy-scripts-setup"
+if [ -f "$SETUP_MARKER" ] && [ "$FORCE" = false ]; then
+    SETUP_DATE=$(cat "$SETUP_MARKER" 2>/dev/null || echo "unknown")
+    echo "Setup already completed on $SETUP_DATE."
+    echo "Re-run with --force or delete $SETUP_MARKER."
+    exit 0
+fi
+
 echo "=== infra-deploy-scripts Setup ==="
 echo ""
 
-# First, check requirements
+# Detect environment
+OS_UNAME="$(uname -s 2>/dev/null || echo unknown)"
+OS_LABEL="$OS_UNAME"
+IS_WSL=false
+case "$OS_UNAME" in
+    Linux)
+        if grep -qi microsoft /proc/version 2>/dev/null; then
+            OS_LABEL="Linux (WSL)"
+            IS_WSL=true
+        else
+            OS_LABEL="Linux"
+        fi
+        ;;
+    Darwin)
+        OS_LABEL="macOS"
+        ;;
+    MINGW*|MSYS*|CYGWIN*)
+        OS_LABEL="Windows (unsupported)"
+        ;;
+esac
+
+echo "Detected environment: $OS_LABEL"
+
+if [ "$OS_LABEL" = "Windows (unsupported)" ]; then
+    echo -e "${RED}Windows detected. WSL is required for infra-deploy-scripts.${NC}"
+    echo "Install WSL (PowerShell as Administrator):"
+    echo "  wsl --install"
+    echo "Docs: https://learn.microsoft.com/windows/wsl/install"
+    exit 1
+fi
+
+if ! command -v git >/dev/null 2>&1; then
+    echo -e "${RED}Git not found in PATH. Please install git and try again.${NC}"
+    exit 1
+fi
+
+echo ""
+
+# Check requirements
 echo "Checking requirements..."
 if [ -f "$SCRIPT_DIR/check-requirements.sh" ]; then
     if ! sh "$SCRIPT_DIR/check-requirements.sh"; then
         echo ""
-        echo -e "${RED}Requirements check failed. Please install missing requirements and run setup again.${NC}"
+        echo -e "${RED}Requirements check failed. Install missing requirements and run setup again.${NC}"
         exit 1
     fi
     echo ""
@@ -52,8 +116,7 @@ if ! command -v just >/dev/null 2>&1; then
     echo -e "${YELLOW}Warning: 'just' command runner is not installed${NC}"
     echo ""
     echo "Installing 'just'..."
-    
-    # Try to detect package manager and install
+
     if command -v apt >/dev/null 2>&1; then
         echo -e "${GREEN}Detected Debian/Ubuntu${NC}"
         if command -v cargo >/dev/null 2>&1; then
@@ -84,11 +147,11 @@ if ! command -v just >/dev/null 2>&1; then
         echo "Or visit: https://github.com/casey/just#installation"
         exit 1
     fi
-    
+
     echo ""
-    echo -e "${GREEN}✓ just installed successfully${NC}"
+    echo -e "${GREEN}OK: just installed successfully${NC}"
 else
-    echo -e "${GREEN}✓ 'just' is already installed${NC}"
+    echo -e "${GREEN}OK: 'just' is already installed${NC}"
     JUST_VERSION=$(just --version 2>/dev/null || echo "unknown")
     echo "  Version: $JUST_VERSION"
 fi
@@ -98,9 +161,8 @@ echo ""
 # Check if we're in a submodule
 if [ -f "$REPO_ROOT/.git" ]; then
     GIT_FILE_CONTENT="$(cat "$REPO_ROOT/.git")"
-    # Check various possible submodule path patterns
     if echo "$GIT_FILE_CONTENT" | grep -q "gitdir: .*modules/.*infra-deploy-scripts"; then
-        echo -e "${GREEN}✓ Detected: Running as git submodule${NC}"
+        echo -e "${GREEN}OK: Detected running as git submodule${NC}"
         IS_SUBMODULE=true
     else
         echo -e "${YELLOW}Note: .git file exists but doesn't match expected submodule pattern${NC}"
@@ -119,41 +181,40 @@ if [ "$IS_SUBMODULE" = true ]; then
     if [ ! -f "$PARENT_DIR/justfile" ]; then
         echo "Copying justfile to parent directory..."
         cp "$REPO_ROOT/justfile" "$PARENT_DIR/justfile"
-        echo -e "${GREEN}✓ Created justfile in: $PARENT_DIR/justfile${NC}"
+        echo -e "${GREEN}OK: Created justfile in: $PARENT_DIR/justfile${NC}"
     else
-        echo -e "${GREEN}✓ justfile already exists in parent directory${NC}"
+        echo -e "${GREEN}OK: justfile already exists in parent directory${NC}"
     fi
 
     echo ""
-    echo "=== Setup Complete! ==="
+    echo "=== Setup Complete ==="
     echo ""
     echo "You can now run commands from the parent directory:"
+    echo "  cd $PARENT_DIR"
+    echo "  just --list"
+    echo "  just setup-key"
     echo ""
-    cd "$PARENT_DIR"
-    echo "  Available commands:"
-    echo "    just encrypt-all        Encrypt all .env files"
-    echo "    just decrypt-all        Decrypt all .env.encrypted files"
-    echo "    just encrypt <stack>    Encrypt specific stack"
-    echo "    just decrypt <stack>    Decrypt specific stack"
-    echo "    just list-stacks        List all available stacks"
-    echo "    just setup-key          Set up local encryption key"
-    echo "    just status             Show repository status"
-    echo "    just update-justfile    Update justfile from latest template"
-    echo ""
-    echo "  See all commands:"
-    echo "    just --list"
-    echo "    just help"
+    echo "Common commands:"
+    echo "  just encrypt-all"
+    echo "  just decrypt-all"
+    echo "  just encrypt <stack>"
+    echo "  just decrypt <stack>"
+    echo "  just list-stacks"
+    echo "  just status"
+    echo "  just update-justfile"
     echo ""
 else
     echo ""
-    echo "=== Setup Complete! ==="
-    echo ""
-    echo "The justfile is available in: $REPO_ROOT/justfile"
+    echo "=== Setup Complete ==="
     echo ""
     echo "Run commands from this directory:"
     echo "  cd $REPO_ROOT"
     echo "  just --list"
+    echo "  just setup-key"
     echo ""
 fi
+
+SETUP_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date)
+echo "$SETUP_DATE" > "$SETUP_MARKER"
 
 echo -e "${GREEN}Happy deploying!${NC}"

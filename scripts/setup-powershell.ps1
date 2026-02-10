@@ -1,155 +1,153 @@
-# PowerShell Profile Setup for Shell Script Support
-# This script configures PowerShell to run .sh scripts directly
+# PowerShell WSL Integration Setup
+# This script configures PowerShell to run infra-deploy-scripts via WSL
 # Run: .\setup-powershell.ps1
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=== PowerShell Shell Script Integration Setup ===" -ForegroundColor Cyan
+Write-Host "=== PowerShell WSL Integration Setup ===" -ForegroundColor Cyan
 Write-Host ""
 
-# Check if Git Bash is installed
-$bashPath = "C:\Program Files\Git\bin\bash.exe"
-if (-not (Test-Path $bashPath)) {
-    Write-Host "❌ Git Bash not found at $bashPath" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "Please install Git for Windows:" -ForegroundColor Yellow
-    Write-Host "  https://git-scm.com/download/win" -ForegroundColor Cyan
-    Write-Host ""
+if ($env:OS -ne "Windows_NT") {
+    Write-Host "This script is intended for Windows PowerShell." -ForegroundColor Yellow
+    Write-Host "If you are on Linux/macOS, use the bash setup script instead." -ForegroundColor Yellow
     exit 1
 }
 
-Write-Host "✓ Git Bash found" -ForegroundColor Green
+$wslExe = Get-Command wsl.exe -ErrorAction SilentlyContinue
+if (-not $wslExe) {
+    Write-Host "WSL not found. WSL is required for infra-deploy-scripts." -ForegroundColor Red
+    Write-Host "Install WSL (PowerShell as Administrator):" -ForegroundColor Yellow
+    Write-Host "  wsl --install" -ForegroundColor Cyan
+    Write-Host "Docs: https://learn.microsoft.com/windows/wsl/install" -ForegroundColor Cyan
+    exit 1
+}
+
+$wslList = & $wslExe.Source -l -q 2>$null
+if (-not $wslList) {
+    Write-Host "WSL is installed but no distributions were found." -ForegroundColor Red
+    Write-Host "Install a distro, then re-run this setup." -ForegroundColor Yellow
+    exit 1
+}
+
+Write-Host "OK: WSL detected" -ForegroundColor Green
+Write-Host "This setup will add PowerShell helpers that run commands inside WSL." -ForegroundColor Green
 Write-Host ""
 
 # PowerShell profile content
 $profileContent = @'
 
 # ============================================
-# Shell Script Support via Git Bash
+# infra-deploy-scripts via WSL
 # ============================================
 
-function sh {
+function wslsh {
     <#
     .SYNOPSIS
-    Run a shell script using Git Bash
+    Run a command in WSL from the current Windows directory
 
     .EXAMPLE
-    sh ./scripts/encrypt-env.sh outline
-    sh "just encrypt-all"
+    wslsh ./lib/infra-deploy-scripts/scripts/setup.sh
+    wslsh "just decrypt-all"
     #>
     param(
         [Parameter(ValueFromRemainingArguments)]
         [string[]]$Arguments
     )
 
-    $bashPath = "C:\Program Files\Git\bin\bash.exe"
+    $wslExe = "wsl.exe"
+    $cmd = $Arguments -join ' '
+    if (-not $cmd) { return }
 
-    if (Test-Path $bashPath) {
-        # Join arguments and pass to bash
-        $cmd = $Arguments -join ' '
-        & $bashPath -c $cmd
-    } else {
-        Write-Error "Git Bash not found at $bashPath. Please install Git for Windows."
-    }
+    $cwd = (Get-Location).Path
+    $wslCwd = & $wslExe wslpath -a -u $cwd 2>$null
+    if (-not $wslCwd) { $wslCwd = "~" }
+
+    & $wslExe bash -lc "cd \"$wslCwd\" && $cmd"
 }
 
-# Just command runner
+Set-Alias sh wslsh
+
 function just {
     <#
     .SYNOPSIS
-    Run just commands
+    Run just commands in WSL
 
     .EXAMPLE
-    just encrypt-all
-    just decrypt outline
+    just decrypt-all
+    just encrypt outline
     #>
     param(
         [Parameter(ValueFromRemainingArguments)]
         [string[]]$Arguments
     )
 
-    sh "just $Arguments"
+    $cmd = "just"
+    if ($Arguments) {
+        $cmd = "just " + ($Arguments -join ' ')
+    }
+    wslsh $cmd
 }
 
-# Encryption shortcuts
 function Encrypt-Stack {
     <#
     .SYNOPSIS
-    Encrypt a single stack
-
-    .EXAMPLE
-    Encrypt-Stack outline
+    Encrypt a single stack via just
     #>
     param(
         [Parameter(Mandatory=$true)]
         [string]$Stack
     )
 
-    sh "./scripts/encrypt-env.sh $Stack"
+    wslsh "just encrypt $Stack"
 }
 
 function Decrypt-Stack {
     <#
     .SYNOPSIS
-    Decrypt a single stack
-
-    .EXAMPLE
-    Decrypt-Stack outline
+    Decrypt a single stack via just
     #>
     param(
         [Parameter(Mandatory=$true)]
         [string]$Stack
     )
 
-    sh "./scripts/decrypt-env.sh $Stack"
+    wslsh "just decrypt $Stack"
 }
 
 function Encrypt-AllStacks {
     <#
     .SYNOPSIS
-    Encrypt all stacks
-
-    .EXAMPLE
-    Encrypt-AllStacks
+    Encrypt all stacks via just
     #>
-    sh "just encrypt-all"
+    wslsh "just encrypt-all"
 }
 
 function Decrypt-AllStacks {
     <#
     .SYNOPSIS
-    Decrypt all stacks
-
-    .EXAMPLE
-    Decrypt-AllStacks
+    Decrypt all stacks via just
     #>
-    sh "just decrypt-all"
+    wslsh "just decrypt-all"
 }
 
 function Show-Stacks {
     <#
     .SYNOPSIS
-    List all available stacks
-
-    .EXAMPLE
-    Show-Stacks
+    List available stacks
     #>
-    sh "just list-stacks"
+    wslsh "just list-stacks"
 }
 
 function Show-DeploymentStatus {
     <#
     .SYNOPSIS
-    Show deployment status
-
-    .EXAMPLE
-    Show-DeploymentStatus
+    Show repository status via just
     #>
-    sh "just status"
+    wslsh "just status"
 }
 
-Write-Host "✓ Shell script integration loaded" -ForegroundColor Green
-Write-Host "  Try: sh ./script.sh or just encrypt-all" -ForegroundColor Cyan
+Write-Host "OK: WSL helpers loaded" -ForegroundColor Green
+Write-Host "Try: sh ./lib/infra-deploy-scripts/scripts/setup.sh" -ForegroundColor Cyan
 '@
 
 # Create profile directory if it doesn't exist
@@ -165,10 +163,9 @@ if (Test-Path $PROFILE) {
     Write-Host "  $PROFILE" -ForegroundColor Cyan
     Write-Host ""
 
-    # Check if our functions are already there
-    $profileContent = Get-Content $PROFILE -Raw
-    if ($profileContent -match "function sh") {
-        Write-Host "⚠ Shell script integration already installed" -ForegroundColor Yellow
+    $existingProfile = Get-Content $PROFILE -Raw
+    if ($existingProfile -match "function wslsh") {
+        Write-Host "WSL helpers already installed" -ForegroundColor Yellow
         Write-Host ""
         $update = Read-Host "Update anyway? (y/N)"
 
@@ -178,45 +175,32 @@ if (Test-Path $PROFILE) {
         }
     }
 
-    # Backup existing profile
     $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
     $backupPath = "$PROFILE.backup_$timestamp"
     Copy-Item $PROFILE $backupPath -Force
-    Write-Host "✓ Existing profile backed up to:" -ForegroundColor Green
+    Write-Host "OK: Existing profile backed up to:" -ForegroundColor Green
     Write-Host "  $backupPath" -ForegroundColor Cyan
     Write-Host ""
 }
 
-# Append to profile
 Add-Content -Path $PROFILE -Value $profileContent
 
-Write-Host "✓ PowerShell profile updated!" -ForegroundColor Green
+Write-Host "OK: PowerShell profile updated" -ForegroundColor Green
 Write-Host ""
-Write-Host "=== Setup Complete! ===" -ForegroundColor Cyan
+Write-Host "=== Setup Complete ===" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "  1. Restart PowerShell" -ForegroundColor Cyan
-Write-Host "  2. Try these commands:" -ForegroundColor Cyan
+Write-Host "  2. From your repo root, run:" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "     # Check requirements" -ForegroundColor White
-Write-Host "     PS> sh ./lib/infra-deploy-scripts/scripts/check-requirements.sh" -ForegroundColor Green
+Write-Host "     # One-time setup in WSL" -ForegroundColor White
+Write-Host "     PS> sh ./lib/infra-deploy-scripts/scripts/setup.sh" -ForegroundColor Green
 Write-Host ""
-Write-Host "     # Encrypt all stacks" -ForegroundColor White
-Write-Host "     PS> just encrypt-all" -ForegroundColor Green
-Write-Host "     PS> Encrypt-AllStacks" -ForegroundColor Green
-Write-Host ""
-Write-Host "     # Encrypt specific stack" -ForegroundColor White
-Write-Host "     PS> sh ./scripts/encrypt-env.sh outline" -ForegroundColor Green
-Write-Host "     PS> Encrypt-Stack outline" -ForegroundColor Green
+Write-Host "     # Key setup" -ForegroundColor White
+Write-Host "     PS> just setup-key" -ForegroundColor Green
 Write-Host ""
 Write-Host "     # Decrypt all stacks" -ForegroundColor White
 Write-Host "     PS> just decrypt-all" -ForegroundColor Green
-Write-Host "     PS> Decrypt-AllStacks" -ForegroundColor Green
 Write-Host ""
-Write-Host "     # Show status" -ForegroundColor White
-Write-Host "     PS> just status" -ForegroundColor Green
-Write-Host "     PS> Show-DeploymentStatus" -ForegroundColor Green
-Write-Host ""
-Write-Host "For more information, see:" -ForegroundColor Yellow
-Write-Host "  lib/infra-deploy-scripts/POWERSHELL_INTEGRATION.md" -ForegroundColor Cyan
+Write-Host "For more info, see README.md" -ForegroundColor Yellow
 Write-Host ""
