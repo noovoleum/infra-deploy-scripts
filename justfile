@@ -31,15 +31,7 @@ decrypt stack *FLAGS:
 # Key management
 setup-key:
     @echo "Setting up local encryption key..."
-    @if [ ! -f key.env ]; then \
-        echo "Please enter your encryption key:"; \
-        read -s key; \
-        echo "ENV_DECRYPTION_KEY='$${key}'" > key.env; \
-        chmod 600 key.env; \
-        echo "Key saved to key.env"; \
-    else \
-        echo "key.env already exists. Skipping."; \
-    fi
+    @bash ./scripts/setup-local-key.sh
 
 # List all stacks
 list-stacks:
